@@ -152,6 +152,10 @@ export function createEndpoint<T>(
     args: MessageMap[Type],
     transferables?: Transferable[],
   ) {
+    if (terminated) {
+      return;
+    }
+
     messenger.postMessage([type, args], transferables);
   }
 
