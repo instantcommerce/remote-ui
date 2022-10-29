@@ -563,11 +563,7 @@ function tryHotSwappingValues(
     return result;
   }
 
-  if (
-    typeof currentValue === 'object' &&
-    currentValue != null &&
-    !isRemoteFragment(currentValue)
-  ) {
+  if (isBasicObject(currentValue) && !isRemoteFragment(currentValue)) {
     seen.set(currentValue, [IGNORE]);
 
     const result = tryHotSwappingObjectValues(currentValue, newValue, seen);
@@ -619,7 +615,7 @@ function makeValueHotSwappable(
     }
 
     return result;
-  } else if (typeof value === 'object' && value != null) {
+  } else if (isBasicObject(value)) {
     const result: Record<string, any> = {};
     seen.set(value, result);
 
@@ -982,7 +978,7 @@ function tryHotSwappingObjectValues(
   newValue: unknown,
   seen: WeakMap<any, HotSwapResult>,
 ): HotSwapResult {
-  if (typeof newValue !== 'object' || newValue == null) {
+  if (!isBasicObject(newValue) || Array.isArray(newValue)) {
     return [
       makeValueHotSwappable(newValue),
       collectNestedHotSwappableValues(currentValue)?.map(
@@ -1107,4 +1103,12 @@ function tryHotSwappingArrayValues(
   }
 
   return [hasChanged ? normalizedNewValue : IGNORE, hotSwaps];
+}
+
+function isBasicObject(value: unknown): value is object {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
 }
