@@ -528,22 +528,37 @@ function updateProps(
 // it instead calls our wrapper around the function, which can refer to, and call, the
 // most recently-applied implementation, instead of directly calling the old implementation.
 
+type HotSwapResult = [any, HotSwapRecord[]?];
+
 function tryHotSwappingValues(
   currentValue: unknown,
   newValue: unknown,
-): [any, HotSwapRecord[]?] {
+  seen: WeakMap<any, HotSwapResult> = new WeakMap(),
+): HotSwapResult {
+  const seenValue = seen.get(currentValue);
+
+  if (seenValue) return seenValue;
+
   if (
     typeof currentValue === 'function' &&
     FUNCTION_CURRENT_IMPLEMENTATION_KEY in currentValue
   ) {
-    return [
+    const result: HotSwapResult = [
       typeof newValue === 'function' ? IGNORE : makeValueHotSwappable(newValue),
       [[currentValue as HotSwappableFunction<any>, newValue]],
     ];
+
+    seen.set(currentValue, result);
+
+    return result;
   }
 
   if (Array.isArray(currentValue)) {
-    return tryHotSwappingArrayValues(currentValue, newValue);
+    const result = tryHotSwappingArrayValues(currentValue, newValue, seen);
+
+    seen.set(currentValue, result);
+
+    return result;
   }
 
   if (
@@ -551,7 +566,11 @@ function tryHotSwappingValues(
     currentValue != null &&
     !isRemoteFragment(currentValue)
   ) {
-    return tryHotSwappingObjectValues(currentValue, newValue);
+    const result = tryHotSwappingObjectValues(currentValue, newValue, seen);
+
+    seen.set(currentValue, result);
+
+    return result;
   }
 
   return [currentValue === newValue ? IGNORE : newValue];
@@ -590,26 +609,36 @@ function makeValueHotSwappable(value: unknown): unknown {
   return value;
 }
 
-// eslint-disable-next-line consistent-return
 function collectNestedHotSwappableValues(
   value: unknown,
+  seen: WeakSet<any> = new WeakSet(),
 ): HotSwappableFunction<any>[] | undefined {
+  if (seen.has(value)) return undefined;
+
   if (typeof value === 'function') {
+    seen.add(value);
     if (FUNCTION_CURRENT_IMPLEMENTATION_KEY in value) return [value];
   } else if (Array.isArray(value)) {
+    seen.add(value);
     return value.reduce<HotSwappableFunction<any>[]>((all, element) => {
-      const nested = collectNestedHotSwappableValues(element);
+      const nested = collectNestedHotSwappableValues(element, seen);
       return nested ? [...all, ...nested] : all;
     }, []);
   } else if (typeof value === 'object' && value != null) {
+    seen.add(value);
     return Object.keys(value).reduce<HotSwappableFunction<any>[]>(
       (all, key) => {
-        const nested = collectNestedHotSwappableValues((value as any)[key]);
+        const nested = collectNestedHotSwappableValues(
+          (value as any)[key],
+          seen,
+        );
         return nested ? [...all, ...nested] : all;
       },
       [],
     );
   }
+
+  return undefined;
 }
 
 function appendChild(
@@ -927,7 +956,8 @@ function makeRemote<Root extends RemoteRoot<any, any>>(
 function tryHotSwappingObjectValues(
   currentValue: object,
   newValue: unknown,
-): [any, HotSwapRecord[]?] {
+  seen: WeakMap<any, HotSwapResult>,
+): HotSwapResult {
   if (typeof newValue !== 'object' || newValue == null) {
     return [
       makeValueHotSwappable(newValue),
@@ -966,6 +996,7 @@ function tryHotSwappingObjectValues(
     const [updatedValue, elementHotSwaps] = tryHotSwappingValues(
       currentObjectValue,
       newObjectValue,
+      seen,
     );
 
     if (elementHotSwaps) hotSwaps.push(...elementHotSwaps);
@@ -989,7 +1020,8 @@ function tryHotSwappingObjectValues(
 function tryHotSwappingArrayValues(
   currentValue: unknown[],
   newValue: unknown,
-): [any, HotSwapRecord[]?] {
+  seen: WeakMap<any, HotSwapResult>,
+): HotSwapResult {
   if (!Array.isArray(newValue)) {
     return [
       makeValueHotSwappable(newValue),
@@ -1022,6 +1054,7 @@ function tryHotSwappingArrayValues(
       const [updatedValue, elementHotSwaps] = tryHotSwappingValues(
         currentArrayValue,
         newArrayValue,
+        seen,
       );
 
       if (elementHotSwaps) hotSwaps.push(...elementHotSwaps);
