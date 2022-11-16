@@ -75,7 +75,11 @@ export function createRemoteRoot<
   AllowedChildrenTypes extends AllowedComponents | boolean = true,
 >(
   channel: RemoteChannel,
-  {strict = true, components}: RemoteRootOptions<AllowedComponents> = {},
+  {
+    strict = true,
+    strictComponents = true,
+    components,
+  }: RemoteRootOptions<AllowedComponents> = {},
 ): RemoteRoot<AllowedComponents, AllowedChildrenTypes> {
   type Root = RemoteRoot<AllowedComponents, AllowedChildrenTypes>;
 
@@ -104,7 +108,7 @@ export function createRemoteRoot<
       return rootInternals.children as any;
     },
     createComponent(type, ...rest) {
-      if (components && components.indexOf(type) < 0) {
+      if (strictComponents && components && components.indexOf(type) < 0) {
         throw new Error(`Unsupported component: ${type}`);
       }
 

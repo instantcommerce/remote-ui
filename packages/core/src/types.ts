@@ -91,6 +91,7 @@ export interface RemoteRootOptions<
   AllowedComponents extends RemoteComponentType<string, any>,
 > {
   readonly strict?: boolean;
+  readonly strictComponents?: boolean;
   readonly components?: ReadonlyArray<AllowedComponents>;
 }
 
