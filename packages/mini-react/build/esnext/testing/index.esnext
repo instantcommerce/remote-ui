@@ -1,0 +1,2 @@
+export { createMount, mount, mounted, unmountAll } from './testing.esnext';
+export { act } from './act.esnext';

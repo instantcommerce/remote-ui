@@ -1,0 +1,752 @@
+import { KIND_TEXT } from '@remote-ui/core';
+import { Fragment } from '../Fragment.mjs';
+import { createVNode } from '../create-element.mjs';
+import { EMPTY_ARRAY } from '../constants.mjs';
+import { removeNode } from '../utilities.mjs';
+import options from '../options.mjs';
+import { diffProps } from './props.mjs';
+
+// issues because `Component` needs to depend on `diff()`, and `diff()` needs to
+// depend on `Component`. For simplicity, I just plunked all the contents in the
+// same file.
+
+class Component {
+  constructor(props, context) {
+    this.props = props;
+    this.context = context;
+    this.state = void 0;
+  }
+
+  setState(update, callback) {
+    const internalThis = this; // only clone state when copying to nextState the first time.
+
+    let state;
+    const {
+      state: currentState,
+      _nextState: nextState
+    } = internalThis;
+
+    if (nextState != null && nextState !== currentState) {
+      state = nextState;
+    } else {
+      state = { ...currentState
+      };
+      internalThis._nextState = state;
+    }
+
+    const resolvedUpdate = typeof update === 'function' ? update({ ...state
+    }, internalThis.props) : update;
+
+    if (resolvedUpdate) {
+      Object.assign(state, resolvedUpdate);
+    } // Skip update if updater function returned null
+
+
+    if (resolvedUpdate == null) return;
+
+    if (internalThis._vnode) {
+      if (callback) internalThis._renderCallbacks.push(callback);
+      enqueueRender(internalThis);
+    }
+  }
+
+  forceUpdate(callback) {
+    const internalThis = this;
+
+    if (internalThis._vnode) {
+      // Set render mode so that we can differentiate where the render request
+      // is coming from. We need this because forceUpdate should never call
+      // shouldComponentUpdate
+      internalThis._force = true;
+      if (callback) internalThis._renderCallbacks.push(callback);
+      enqueueRender(internalThis);
+    }
+  }
+
+  render({
+    children
+  }) {
+    return children;
+  }
+
+}
+/**
+ * Trigger in-place re-rendering of a component.
+ */
+
+function renderComponent(component) {
+  const vnode = component._vnode;
+  const oldRemoteNode = vnode._remoteNode;
+  const parentRemoteNode = component._parentRemoteNode;
+
+  if (parentRemoteNode) {
+    const commitQueue = [];
+    const oldVNode = { ...vnode
+    };
+    oldVNode._original = oldVNode;
+    const newRemoteNode = diff(parentRemoteNode, component._remoteRoot, vnode, oldVNode, component._globalContext, [], commitQueue, oldRemoteNode == null ? getRemoteSibling(vnode) : oldRemoteNode);
+    commitRoot(commitQueue, vnode);
+
+    if (newRemoteNode !== oldRemoteNode) {
+      updateRemoteNodePointers(vnode);
+    }
+  }
+}
+
+function updateRemoteNodePointers(vnode) {
+  const parentVNode = vnode._parent;
+  const parentComponent = parentVNode === null || parentVNode === void 0 ? void 0 : parentVNode._component;
+
+  if (parentVNode != null && parentComponent != null) {
+    parentVNode._remoteNode = null;
+    parentComponent.base = undefined;
+
+    for (const child of parentVNode._children) {
+      if ((child === null || child === void 0 ? void 0 : child._remoteNode) != null) {
+        const newRemoteNode = child._remoteNode;
+        parentVNode._remoteNode = newRemoteNode;
+        parentComponent.base = newRemoteNode;
+        break;
+      }
+    }
+
+    updateRemoteNodePointers(parentVNode);
+  }
+}
+/**
+ * The render queue
+ * @type {Array<import('./internal').Component>}
+ */
+
+
+let rerenderQueue = [];
+const defer = typeof Promise === 'function' ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout;
+/*
+ * The value of `Component.debounce` must asynchronously invoke the passed in callback. It is
+ * important that contributors to Preact can consistently reason about what calls to `setState`, etc.
+ * do, and when their effects will be applied. See the links below for some further reading on designing
+ * asynchronous APIs.
+ * * [Designing APIs for Asynchrony](https://blog.izs.me/2013/08/designing-apis-for-asynchrony)
+ * * [Callbacks synchronous and asynchronous](https://blog.ometer.com/2011/07/24/callbacks-synchronous-and-asynchronous/)
+ */
+
+let prevDebounce;
+function enqueueRender(component) {
+  let shouldProcess = false;
+
+  if (component._dirty) {
+    shouldProcess = prevDebounce !== options.debounceRendering;
+  } else {
+    component._dirty = true;
+    rerenderQueue.push(component); // We only want to process if we aren’t already in the middle of consuming
+    // the current render queue
+
+    shouldProcess = process._rerenderCount === 0;
+    process._rerenderCount += 1;
+  }
+
+  if (shouldProcess) {
+    var _prevDebounce;
+
+    prevDebounce = options.debounceRendering;
+    ((_prevDebounce = prevDebounce) !== null && _prevDebounce !== void 0 ? _prevDebounce : defer)(process);
+  }
+}
+/** Flush the render queue by rerendering all queued components */
+
+function process() {
+  let queue;
+
+  while (process._rerenderCount = rerenderQueue.length) {
+    queue = rerenderQueue.sort((componentA, componentB) => // We know _vnode is defined here because only components that have
+    // actually rendered can be rerendered.
+    componentA._vnode._depth - componentB._vnode._depth);
+    rerenderQueue = []; // Don't update `renderCount` yet. Keep its value non-zero to prevent unnecessary
+    // process() calls from getting scheduled while `queue` is still being consumed.
+
+    queue.forEach(component => {
+      if (component._dirty) renderComponent(component);
+    });
+  }
+}
+
+process._rerenderCount = 0;
+
+function getRemoteSibling(vnode, childIndex) {
+  if (childIndex == null) {
+    // Use childIndex==null as a signal to resume the search from the vnode's sibling
+    return vnode._parent ? getRemoteSibling(vnode._parent, vnode._parent._children.indexOf(vnode) + 1) : null;
+  }
+
+  for (const sibling of vnode._children) {
+    if ((sibling === null || sibling === void 0 ? void 0 : sibling._remoteNode) != null) {
+      // Since updateParentDomPointers keeps _dom pointer correct,
+      // we can rely on _dom to tell us if this subtree contains a
+      // rendered DOM node, and what the first rendered DOM node is
+      return sibling._remoteNode;
+    }
+  } // If we get here, we have not found a DOM node in this vnode's children.
+  // We must resume from this vnode's sibling (in it's parent _children array)
+  // Only climb up and search the parent if we aren't searching through a DOM
+  // VNode (meaning we reached the DOM parent of the original vnode that began
+  // the search)
+
+
+  return typeof vnode.type === 'function' ? getRemoteSibling(vnode) : null;
+}
+/**
+ * Diff two virtual nodes and apply proper changes to a remote node
+ */
+
+
+function diff(parentNode, remoteRoot, newVNode, oldVNode, globalContext, excessRemoteChildren, commitQueue, oldRemoteNode) {
+  var _options$_diff;
+
+  const newType = newVNode.type; // When passing through createElement it assigns the object
+  // constructor as undefined. This to prevent JSON-injection.
+
+  if (newVNode.constructor !== undefined) return null;
+  (_options$_diff = options._diff) === null || _options$_diff === void 0 ? void 0 : _options$_diff.call(options, newVNode);
+
+  try {
+    var _options$diffed;
+
+    // eslint-disable-next-line no-labels
+    outer: if (typeof newType === 'function') {
+      var _options$_render;
+
+      let isNew = false;
+      let clearProcessingException;
+      let component;
+      const oldComponent = oldVNode === null || oldVNode === void 0 ? void 0 : oldVNode._component;
+      const newProps = newVNode.props; // Necessary for createContext api. Setting this property will pass
+      // the context value as `this.context` just for this component.
+
+      const contextType = newType.contextType;
+      const provider = contextType && globalContext[contextType._id]; // eslint-disable-next-line no-nested-ternary
+
+      const componentContext = contextType ? provider ? provider.props.value : contextType._defaultValue : globalContext;
+
+      if (oldComponent) {
+        component = oldComponent;
+        newVNode._component = component;
+        clearProcessingException = component._pendingError;
+        component._processingException = component._pendingError;
+      } else {
+        // Instantiate the new component
+        if ('prototype' in newType && newType.prototype.render) {
+          component = new newType(newProps, componentContext);
+        } else {
+          component = new Component(newProps, componentContext);
+          component.constructor = newType;
+          component.render = doRender;
+        }
+
+        newVNode._component = component;
+        if (provider) provider.sub(component);
+        component.props = newProps;
+        if (!component.state) component.state = {};
+        component.context = componentContext;
+        component._globalContext = globalContext;
+        component._remoteRoot = remoteRoot;
+        component._dirty = true;
+        component._renderCallbacks = [];
+        isNew = true;
+      } // Invoke getDerivedStateFromProps
+
+
+      if (component._nextState == null) {
+        component._nextState = component.state;
+      }
+
+      if (newType.getDerivedStateFromProps != null) {
+        // Clone state to _nextState because we are about to assign new
+        // state values to _nextState and we don’t want it to be visible
+        // on state
+        if (component._nextState === component.state) {
+          component._nextState = { ...component._nextState
+          };
+        }
+
+        Object.assign(component._nextState, newType.getDerivedStateFromProps(newProps, component._nextState));
+      }
+
+      let snapshot;
+      const {
+        props: oldProps,
+        state: oldState
+      } = component; // Invoke pre-render lifecycle methods
+
+      if (isNew) {
+        if (newType.getDerivedStateFromProps == null && component.componentWillMount != null) {
+          component.componentWillMount();
+        }
+
+        if (component.componentDidMount != null) {
+          component._renderCallbacks.push(component.componentDidMount);
+        }
+      } else {
+        if (newType.getDerivedStateFromProps == null && newProps !== oldProps && component.componentWillReceiveProps != null) {
+          component.componentWillReceiveProps(newProps, componentContext);
+        }
+
+        if (!component._force && component.shouldComponentUpdate != null && component.shouldComponentUpdate(newProps, component._nextState, componentContext) === false || newVNode._original === (oldVNode === null || oldVNode === void 0 ? void 0 : oldVNode._original)) {
+          component.props = newProps;
+          component.state = component._nextState; // More info about this here: https://gist.github.com/JoviDeCroock/bec5f2ce93544d2e6070ef8e0036e4e8
+
+          if (newVNode._original !== oldVNode._original) {
+            component._dirty = false;
+          }
+
+          component._vnode = newVNode;
+          newVNode._remoteNode = oldVNode._remoteNode;
+          newVNode._children = oldVNode._children;
+
+          if (component._renderCallbacks.length) {
+            commitQueue.push(component);
+          }
+
+          reorderChildren(newVNode, oldRemoteNode, parentNode); // eslint-disable-next-line no-labels
+
+          break outer;
+        }
+
+        if (component.componentWillUpdate != null) {
+          component.componentWillUpdate(newProps, component._nextState, componentContext);
+        }
+
+        if (component.componentDidUpdate != null) {
+          component._renderCallbacks.push(() => {
+            component.componentDidUpdate(oldProps, oldState, snapshot);
+          });
+        }
+      }
+
+      component.context = componentContext;
+      component.props = newProps;
+      component.state = component._nextState;
+      (_options$_render = options._render) === null || _options$_render === void 0 ? void 0 : _options$_render.call(options, newVNode);
+      component._dirty = false;
+      component._vnode = newVNode;
+      component._parentRemoteNode = parentNode;
+      const renderResult = component.render(component.props, component.state, component.context);
+      const normalizedRenderResult = renderResult == null || renderResult.type !== Fragment || renderResult.key != null ? renderResult : renderResult.props.children; // Handle setState called in render
+
+      component.state = component._nextState;
+      const newContext = component.getChildContext == null ? globalContext : { ...globalContext,
+        ...component.getChildContext()
+      };
+
+      if (!isNew && component.getSnapshotBeforeUpdate != null) {
+        snapshot = component.getSnapshotBeforeUpdate(oldProps, oldState);
+      }
+
+      diffChildren(parentNode, remoteRoot, Array.isArray(normalizedRenderResult) ? normalizedRenderResult : [normalizedRenderResult], newVNode, oldVNode, newContext, excessRemoteChildren, commitQueue, oldRemoteNode);
+      component.base = newVNode._remoteNode;
+
+      if (component._renderCallbacks.length) {
+        commitQueue.push(component);
+      }
+
+      if (clearProcessingException) {
+        component._pendingError = null;
+        component._processingException = null;
+      }
+
+      component._force = false;
+    } else if (excessRemoteChildren == null && newVNode._original === (oldVNode === null || oldVNode === void 0 ? void 0 : oldVNode._original)) {
+      newVNode._children = oldVNode._children;
+      newVNode._remoteNode = oldVNode._remoteNode;
+    } else {
+      newVNode._remoteNode = diffElementNodes(oldVNode === null || oldVNode === void 0 ? void 0 : oldVNode._remoteNode, remoteRoot, newVNode, oldVNode, globalContext, excessRemoteChildren, commitQueue);
+    }
+
+    (_options$diffed = options.diffed) === null || _options$diffed === void 0 ? void 0 : _options$diffed.call(options, newVNode);
+  } catch (error) {
+    newVNode._original = null; // if creating initial tree, bailout preserves DOM:
+
+    if (excessRemoteChildren != null) {
+      newVNode._remoteNode = oldRemoteNode;
+      excessRemoteChildren[excessRemoteChildren.indexOf(oldRemoteNode)] = null;
+    }
+
+    options._catchError(error, newVNode, oldVNode);
+  }
+
+  return newVNode._remoteNode;
+}
+function commitRoot(commitQueue, vnode) {
+  var _options$_commit;
+
+  (_options$_commit = options._commit) === null || _options$_commit === void 0 ? void 0 : _options$_commit.call(options, vnode, commitQueue);
+  commitQueue.forEach(component => {
+    try {
+      const renderCallbacks = component._renderCallbacks;
+      component._renderCallbacks = [];
+      renderCallbacks.forEach(cb => {
+        cb.call(component);
+      });
+    } catch (error) {
+      options._catchError(error, component._vnode);
+    }
+  });
+}
+/**
+ * Unmount a virtual node from the tree and apply changes to the remote tree
+ */
+
+function unmount(vnode, parentVNode, skipRemove = false) {
+  var _options$unmount, _remoteNode, _remoteNode$parent;
+
+  (_options$unmount = options.unmount) === null || _options$unmount === void 0 ? void 0 : _options$unmount.call(options, vnode);
+  const {
+    ref,
+    type,
+    _component: component,
+    _children: children
+  } = vnode;
+  let finalSkipRemove = skipRemove;
+  let remoteNode;
+
+  if (ref) {
+    if (!ref.current || ref.current === vnode._remoteNode) {
+      applyRef(ref, null, parentVNode);
+    }
+  }
+
+  if (!skipRemove && typeof type !== 'function') {
+    remoteNode = vnode._remoteNode;
+    finalSkipRemove = remoteNode != null;
+  } // Must be set to `undefined` to properly clean up `_nextRemoteNode`
+  // for which `null` is a valid value. See comment in `create-element.js`
+
+
+  vnode._remoteNode = undefined;
+  vnode._nextRemoteNode = undefined;
+
+  if (component != null) {
+    if (component.componentWillUnmount) {
+      try {
+        component.componentWillUnmount();
+      } catch (error) {
+        options._catchError(error, parentVNode);
+      }
+    }
+
+    component.base = null;
+    component._parentRemoteNode = null;
+  }
+
+  if (children) {
+    for (const child of children) {
+      if (child) unmount(child, parentVNode, finalSkipRemove);
+    }
+  }
+
+  (_remoteNode = remoteNode) === null || _remoteNode === void 0 ? void 0 : (_remoteNode$parent = _remoteNode.parent) === null || _remoteNode$parent === void 0 ? void 0 : _remoteNode$parent.removeChild(remoteNode);
+}
+/**
+ * Diff two virtual nodes representing DOM element
+ * @param {import('../internal').PreactElement} dom The DOM element representing
+ * the virtual nodes being diffed
+ * @param {import('../internal').VNode} newVNode The new virtual node
+ * @param {import('../internal').VNode} oldVNode The old virtual node
+ * @param {object} globalContext The current context object
+ * @param {boolean} isSvg Whether or not this DOM node is an SVG node
+ * @param {*} excessRemoteChildren
+ * @param {Array<import('../internal').Component>} commitQueue List of components
+ * which have callbacks to invoke in commitRoot
+ * @param {boolean} isHydrating Whether or not we are in hydration
+ * @returns {import('../internal').PreactElement}
+ */
+
+function diffElementNodes(remoteNode, remoteRoot, newVNode, oldVNode, globalContext, excessChildren, commitQueue) {
+  const oldProps = oldVNode === null || oldVNode === void 0 ? void 0 : oldVNode.props;
+  const newProps = newVNode.props;
+  let resolvedRemoteNode = remoteNode;
+  let resolvedExcessChildren = excessChildren;
+
+  if (excessChildren != null) {
+    for (const child of excessChildren) {
+      // if newVNode matches an element in excessRemoteChildren or the `dom`
+      // argument matches an element in excessRemoteChildren, remove it from
+      // excessRemoteChildren so it isn't later removed in diffChildren
+      if (child != null && ((newVNode.type === null ? child.kind === KIND_TEXT : child.type === newVNode.type) || remoteNode === child)) {
+        resolvedRemoteNode = child;
+        excessChildren[excessChildren.indexOf(child)] = null;
+        break;
+      }
+    }
+  }
+
+  if (resolvedRemoteNode == null) {
+    if (newVNode.type === null) {
+      return remoteRoot.createText(newProps);
+    }
+
+    resolvedRemoteNode = remoteRoot.createComponent(newVNode.type); // we created a new parent, so none of the previously attached children can be reused:
+
+    resolvedExcessChildren = null;
+  }
+
+  if (newVNode.type === null) {
+    if (oldProps !== newProps && resolvedRemoteNode.text !== newProps) {
+      resolvedRemoteNode.updateText(newProps);
+    }
+  } else {
+    resolvedRemoteNode = resolvedRemoteNode;
+
+    if (excessChildren != null) {
+      resolvedExcessChildren = [...resolvedRemoteNode.children];
+    }
+
+    diffProps(resolvedRemoteNode, newProps, oldProps !== null && oldProps !== void 0 ? oldProps : {});
+    const {
+      children
+    } = newProps;
+    diffChildren(resolvedRemoteNode, remoteRoot, Array.isArray(children) ? children : [children], newVNode, oldVNode, globalContext, resolvedExcessChildren, commitQueue);
+  }
+
+  return resolvedRemoteNode;
+}
+
+function applyRef(ref, value, vnode) {
+  try {
+    if (typeof ref === 'function') {
+      ref(value);
+    } else {
+      ref.current = value;
+    }
+  } catch (error) {
+    options._catchError(error, vnode);
+  }
+}
+
+function reorderChildren(newVNode, oldRemoteNode, parentRemoteNode) {
+  for (const vnode of newVNode._children) {
+    if (vnode == null) continue;
+    vnode._parent = newVNode;
+
+    if (vnode._remoteNode) {
+      if (typeof vnode.type === 'function' && vnode._children.length > 1) {
+        reorderChildren(vnode, oldRemoteNode, parentRemoteNode);
+      }
+
+      const updatedRemoteNode = placeChild(parentRemoteNode, vnode, vnode, newVNode._children, null, vnode._remoteNode, oldRemoteNode);
+
+      if (typeof newVNode.type === 'function') {
+        newVNode._nextRemoteNode = updatedRemoteNode;
+      }
+    }
+  }
+}
+/** The `.render()` method for a PFC backing instance. */
+
+
+function doRender(props, _state, context) {
+  return this.constructor(props, context);
+}
+/**
+ * Diff the children of a virtual node.
+ */
+
+
+function diffChildren(parentNode, remoteRoot, renderResult, newParentVNode, oldParentVNode, globalContext, excessRemoteChildren, commitQueue, oldRemoteNode) {
+  var _oldParentVNode$_chil;
+
+  const oldChildren = (_oldParentVNode$_chil = oldParentVNode === null || oldParentVNode === void 0 ? void 0 : oldParentVNode._children) !== null && _oldParentVNode$_chil !== void 0 ? _oldParentVNode$_chil : EMPTY_ARRAY;
+  const oldChildrenLength = oldChildren.length;
+  let resolvedOldRemoteNode = oldRemoteNode; // Only in very specific places should this logic be invoked (top level `render` and `diffElementNodes`).
+  // I'm using `EMPTY_OBJ` to signal when `diffChildren` is invoked in these situations. I can't use `null`
+  // for this purpose, because `null` is a valid value for `oldDom` which can mean to skip to this logic
+  // (e.g. if mounting a new tree in which the old DOM should be ignored (usually for Fragments).
+
+  if (resolvedOldRemoteNode == null) {
+    if (excessRemoteChildren != null) {
+      resolvedOldRemoteNode = excessRemoteChildren[0];
+    } else if (oldChildrenLength) {
+      resolvedOldRemoteNode = getRemoteSibling(oldParentVNode, 0);
+    } else {
+      resolvedOldRemoteNode = null;
+    }
+  }
+
+  newParentVNode._children = [];
+  let index;
+  let refs;
+  let firstRemoteNode;
+
+  for (index = 0; index < renderResult.length; index++) {
+    var _oldVNode, _oldVNode2, _oldVNode4;
+
+    const rendered = renderResult[index];
+    let childVNode;
+
+    if (rendered == null || typeof rendered === 'boolean') {
+      childVNode = null;
+    } else if (typeof rendered === 'string' || typeof rendered === 'number') {
+      childVNode = createVNode(null, rendered, null, undefined, rendered);
+    } else if (Array.isArray(rendered)) {
+      childVNode = createVNode(Fragment, {
+        children: rendered
+      }, null, undefined, null);
+    } else if (rendered._remoteNode != null || rendered._component != null) {
+      childVNode = createVNode(rendered.type, rendered.props, rendered.key, undefined, rendered._original);
+    } else {
+      childVNode = rendered;
+    }
+
+    newParentVNode._children[index] = childVNode; // Terser removes the `continue` here and wraps the loop body
+    // in a `if (childVNode) { ... } condition
+
+    if (childVNode == null) {
+      continue;
+    }
+
+    childVNode._parent = newParentVNode;
+    childVNode._depth = newParentVNode._depth + 1; // Check if we find a corresponding element in oldChildren.
+    // If found, delete the array item by setting to `undefined`.
+    // We use `undefined`, as `null` is reserved for empty placeholders
+    // (holes).
+
+    let oldVNode = oldChildren[index];
+
+    if (oldVNode === null || oldVNode && childVNode.key === oldVNode.key && childVNode.type === oldVNode.type) {
+      oldChildren[index] = undefined;
+    } else {
+      // Either oldVNode === undefined or oldChildrenLength > 0,
+      // so after this loop oldVNode == null or oldVNode is a valid value.
+      for (let oldIndex = 0; oldIndex < oldChildrenLength; oldIndex++) {
+        oldVNode = oldChildren[oldIndex]; // If childVNode is unkeyed, we only match similarly unkeyed nodes, otherwise we match by key.
+        // We always match by type (in either case).
+
+        if (oldVNode && childVNode.key === oldVNode.key && childVNode.type === oldVNode.type) {
+          oldChildren[oldIndex] = undefined;
+          break;
+        }
+
+        oldVNode = null;
+      }
+    } // Morph the old element into the new one, but don't append it to the dom yet
+
+
+    const newRemoteNode = diff(parentNode, remoteRoot, childVNode, (_oldVNode = oldVNode) !== null && _oldVNode !== void 0 ? _oldVNode : undefined, globalContext, excessRemoteChildren, commitQueue, resolvedOldRemoteNode);
+    const ref = childVNode.ref;
+
+    if (ref && ((_oldVNode2 = oldVNode) === null || _oldVNode2 === void 0 ? void 0 : _oldVNode2.ref) !== ref) {
+      var _oldVNode3, _childVNode$_componen;
+
+      if (!refs) {
+        refs = [];
+      }
+
+      if ((_oldVNode3 = oldVNode) !== null && _oldVNode3 !== void 0 && _oldVNode3.ref) {
+        refs.push([oldVNode.ref, null, childVNode]);
+      }
+
+      refs.push([ref, (_childVNode$_componen = childVNode._component) !== null && _childVNode$_componen !== void 0 ? _childVNode$_componen : newRemoteNode, childVNode]);
+    }
+
+    if (newRemoteNode != null) {
+      if (firstRemoteNode == null) {
+        firstRemoteNode = newRemoteNode;
+      }
+
+      resolvedOldRemoteNode = placeChild(parentNode, childVNode, oldVNode, oldChildren, excessRemoteChildren, newRemoteNode, resolvedOldRemoteNode);
+
+      if (typeof newParentVNode.type === 'function') {
+        // Because the newParentVNode is Fragment-like, we need to set it's
+        // _nextDom property to the nextSibling of its last child DOM node.
+        //
+        // `resolvedOldRemoteNode` contains the correct value here because if the last child
+        // is a Fragment-like, then resolvedOldRemoteNode has already been set to that child's _nextRemoteNode.
+        // If the last child is a DOM VNode, then oldDom will be set to that DOM
+        // node's nextSibling.
+        newParentVNode._nextRemoteNode = resolvedOldRemoteNode;
+      }
+    } else if (resolvedOldRemoteNode && // eslint-disable-next-line eqeqeq
+    ((_oldVNode4 = oldVNode) === null || _oldVNode4 === void 0 ? void 0 : _oldVNode4._remoteNode) == resolvedOldRemoteNode && resolvedOldRemoteNode.parent !== parentNode) {
+      // The above condition is to handle null placeholders
+      resolvedOldRemoteNode = getRemoteSibling(oldVNode);
+    }
+  }
+
+  newParentVNode._remoteNode = firstRemoteNode; // Remove children that are not part of any vnode.
+
+  if (excessRemoteChildren != null && typeof newParentVNode.type !== 'function') {
+    for (let index = excessRemoteChildren.length; index--;) {
+      if (excessRemoteChildren[index] != null) {
+        removeNode(excessRemoteChildren[index]);
+      }
+    }
+  } // Remove remaining oldChildren if there are any.
+
+
+  for (let index = oldChildrenLength; index--;) {
+    const child = oldChildren[index];
+
+    if (child != null) {
+      unmount(child, child);
+    }
+  } // Set refs only after unmount
+
+
+  if (refs) {
+    for (const refEntry of refs) {
+      applyRef(...refEntry);
+    }
+  }
+}
+
+function placeChild(parentNode, childVNode, oldVNode, oldChildren, excessRemoteChildren, newRemoteNode, oldRemoteNode) {
+  let nextRemoteNode;
+
+  if (childVNode._nextRemoteNode !== undefined) {
+    // Only Fragments or components that return Fragment like VNodes will
+    // have a non-undefined _nextRemoteNode. Continue the diff from the sibling
+    // of last DOM child of this child VNode
+    nextRemoteNode = childVNode._nextRemoteNode; // Eagerly cleanup _nextRemoteNode. We don't need to persist the value because
+    // it is only used by `diffChildren` to determine where to resume the diff after
+    // diffing Components and Fragments. Once we store it the nextRemoteNode local var, we
+    // can clean up the property
+
+    childVNode._nextRemoteNode = undefined;
+  } else if ( // eslint-disable-next-line eqeqeq
+  excessRemoteChildren == oldVNode || newRemoteNode !== oldRemoteNode || newRemoteNode.parent == null) {
+    // NOTE: excessDomChildren==oldVNode above:
+    // This is a compression of excessDomChildren==null && oldVNode==null!
+    // The values only have the same type when `null`.
+    // eslint-disable-next-line no-labels
+    outer: if (oldRemoteNode == null || oldRemoteNode.parent !== parentNode) {
+      parentNode.appendChild(newRemoteNode);
+      nextRemoteNode = null;
+    } else {
+      // `j<oldChildrenLength; j+=2` is an alternative to `j++<oldChildrenLength/2`
+      for (let siblingRemoteNode = oldRemoteNode, j = 0; (siblingRemoteNode = nextSiblingRemote(siblingRemoteNode)) && j < oldChildren.length; j += 2) {
+        if (siblingRemoteNode === newRemoteNode) {
+          // eslint-disable-next-line no-labels
+          break outer;
+        }
+      }
+
+      parentNode.insertChildBefore(newRemoteNode, oldRemoteNode);
+      nextRemoteNode = oldRemoteNode;
+    }
+  } // If we have pre-calculated the nextDOM node, use it. Else calculate it now
+  // Strictly check for `undefined` here cuz `null` is a valid value of `nextDom`.
+  // See more detail in create-element.js:createVNode
+
+
+  return nextRemoteNode === undefined ? nextSiblingRemote(newRemoteNode) : nextRemoteNode;
+}
+
+function nextSiblingRemote(node) {
+  const {
+    parent
+  } = node;
+  if (parent == null) return null;
+  const parentChildren = parent.children;
+  return parentChildren[parentChildren.indexOf(node) + 1] || null;
+}
+
+export { Component, applyRef, commitRoot, diff, enqueueRender, unmount };

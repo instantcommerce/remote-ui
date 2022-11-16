@@ -1,0 +1,14 @@
+import { catchError } from './catch-error.esnext';
+
+/**
+ * The `option` object can potentially contain callback functions
+ * that are called during various stages of our renderer. This is the
+ * foundation on which the `hooks` and `compat` layers are based.
+ */
+
+const options = {
+  _catchError: catchError
+};
+var options$1 = options;
+
+export { options$1 as default };

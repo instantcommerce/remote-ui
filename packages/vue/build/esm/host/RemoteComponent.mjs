@@ -1,0 +1,66 @@
+import { defineComponent, computed, watch, h } from 'vue';
+import { release, retain } from '@remote-ui/core';
+import { RemoteText } from './RemoteText.mjs';
+import { useAttached } from './shared.mjs';
+
+const RemoteComponent = defineComponent({
+  name: 'RemoteComponent',
+  props: {
+    component: {
+      type: Object,
+      required: true
+    },
+    receiver: {
+      type: Object,
+      required: true
+    },
+    controller: {
+      type: Object,
+      required: true
+    }
+  },
+
+  setup({
+    receiver,
+    component,
+    controller
+  }) {
+    const attached = useAttached(receiver, component);
+    const propsRef = computed(() => {
+      var _attached$value;
+
+      return (_attached$value = attached.value) === null || _attached$value === void 0 ? void 0 : _attached$value.props;
+    });
+    watch(propsRef, (newProps, oldProps) => {
+      release(oldProps);
+      retain(newProps);
+    });
+    return () => {
+      if (attached.value == null) return null;
+      const Implementation = controller.get(component.type);
+      const {
+        children,
+        props
+      } = attached.value;
+      return h(Implementation, props, () => children.map(child => {
+        if ('children' in child) {
+          return h(RemoteComponent, {
+            key: child.id,
+            receiver,
+            component: child,
+            controller
+          });
+        } else {
+          return h(RemoteText, {
+            key: child.id,
+            text: child,
+            receiver
+          });
+        }
+      }));
+    };
+  }
+
+});
+
+export { RemoteComponent };

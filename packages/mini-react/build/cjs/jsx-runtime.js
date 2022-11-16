@@ -1,0 +1,47 @@
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+var Fragment = require('./Fragment.js');
+var options = require('./options.js');
+
+function createVNode(type, props, key, __source, __self) {
+  var _options$vnode;
+
+  // If a Component VNode, check for and apply defaultProps
+  // Note: type may be undefined in development, must never error here.
+  const defaultProps = type === null || type === void 0 ? void 0 : type.defaultProps;
+
+  if (defaultProps) {
+    for (const key in defaultProps) {
+      if (props[key] === undefined) {
+        props[key] = defaultProps[key];
+      }
+    }
+  }
+
+  const vnode = {
+    type,
+    props,
+    key,
+    ref: props === null || props === void 0 ? void 0 : props.ref,
+    _children: null,
+    _parent: null,
+    _depth: 0,
+    _remoteNode: null,
+    _nextRemoteNode: undefined,
+    _component: undefined,
+    constructor: undefined,
+    _original: null,
+    __source,
+    __self
+  };
+  vnode._original = vnode;
+  (_options$vnode = options["default"].vnode) === null || _options$vnode === void 0 ? void 0 : _options$vnode.call(options["default"], vnode);
+  return vnode;
+}
+
+exports.Fragment = Fragment.Fragment;
+exports.jsx = createVNode;
+exports.jsxDEV = createVNode;
+exports.jsxs = createVNode;
