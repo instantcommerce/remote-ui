@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.14] - 2021-07-14
+
+- Fixed a crash when mutating the children of a fragment ([pull request](https://github.com/Shopify/remote-ui/pull/170))
+
+## [2.1.13] - 2021-07-12
+
+- Fixed a nested node prop rendering bug in the receiver ([pull request](https://github.com/Shopify/remote-ui/pull/168))
+
+## [2.1.12] - 2021-06-15
+
+- Fixed a rendering order issue with inserting child in remote components ([pull request](https://github.com/Shopify/remote-ui/pull/165))
+
+## [2.1.11] - 2021-06-13
+
+- Fixed more issues with re-ordering children in remote components ([pull request](https://github.com/Shopify/remote-ui/pull/161))
+
+## [2.1.10] - 2021-06-07
+
+- Fixed an issue where children were not removed from an existing parent before being appended to a new one ([pull request](https://github.com/Shopify/remote-ui/pull/160))
+
 ## [2.1.9] - 2021-04-06
 
 - Fixed an issue where the host representation of a remote root did not have a `kind` field ([pull request](https://github.com/Shopify/remote-ui/pull/150))

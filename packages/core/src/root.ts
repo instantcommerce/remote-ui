@@ -37,6 +37,8 @@ interface RootInternals {
   nodes: WeakSet<AnyNode>;
   tops: WeakMap<AnyNode, AnyParent>;
   parents: WeakMap<AnyNode, AnyParent>;
+  components: WeakMap<RemoteComponent<any, any>, ComponentInternals>;
+  fragments: WeakMap<RemoteFragment<any>, FragmentInternals>;
   children: ReadonlyArray<AnyChild>;
 }
 
@@ -87,6 +89,8 @@ export function createRemoteRoot<
     nodes: new WeakSet(),
     parents: new WeakMap(),
     tops: new WeakMap(),
+    components: new WeakMap(),
+    fragments: new WeakMap(),
   };
 
   if (strict) Object.freeze(components);
@@ -197,6 +201,8 @@ export function createRemoteRoot<
         ...EMPTY_OBJECT,
       };
 
+      rootInternals.components.set(component, internals);
+
       Object.defineProperty(component, 'type', {
         value: type,
         configurable: false,
@@ -268,6 +274,8 @@ export function createRemoteRoot<
         // some properties manually.
         ...EMPTY_OBJECT,
       };
+
+      rootInternals.fragments.set(fragment, internals);
 
       makePartOfTree(fragment, rootInternals);
       makeRemote(fragment, id, remoteRoot);
@@ -618,21 +626,49 @@ function appendChild(
     );
   }
 
+  const currentParent = child.parent;
+  const existingIndex = currentParent?.children.indexOf(child) ?? -1;
+
   return perform(container, rootInternals, {
-    remote: (channel) =>
+    remote: (channel) => {
       channel(
         ACTION_INSERT_CHILD,
         (container as any).id,
-        container.children.length,
+        existingIndex < 0
+          ? container.children.length
+          : container.children.length - 1,
         serializeChild(child),
-      ),
+        currentParent ? currentParent.id : false,
+      );
+    },
     local: () => {
       moveNodeToContainer(container, child, rootInternals);
 
-      const mergedChildren = [...internals.children, child];
-      internals.children = strict
-        ? Object.freeze(mergedChildren)
-        : mergedChildren;
+      let newChildren: AnyChild[];
+
+      if (currentParent) {
+        const currentInternals = getCurrentInternals(
+          currentParent,
+          rootInternals,
+        )!;
+        const currentChildren = [...currentInternals.children];
+        currentChildren.splice(existingIndex, 1);
+
+        if (currentParent === container) {
+          newChildren = currentChildren;
+        } else {
+          currentInternals.children = strict
+            ? Object.freeze(currentChildren)
+            : currentChildren;
+
+          newChildren = [...internals.children];
+        }
+      } else {
+        newChildren = [...internals.children];
+      }
+
+      newChildren.push(child);
+      internals.children = strict ? Object.freeze(newChildren) : newChildren;
     },
   });
 }
@@ -686,18 +722,50 @@ function insertChildBefore(
     );
   }
 
+  const currentParent = child.parent;
+  const existingIndex = currentParent?.children.indexOf(child) ?? -1;
+
   return perform(container, rootInternals, {
-    remote: (channel) =>
+    remote: (channel) => {
+      const beforeIndex = container.children.indexOf(before as any);
+
       channel(
         ACTION_INSERT_CHILD,
         (container as any).id,
-        container.children.indexOf(before as any),
+        beforeIndex < existingIndex || existingIndex < 0
+          ? beforeIndex
+          : beforeIndex - 1,
         serializeChild(child),
-      ),
+        currentParent ? currentParent.id : false,
+      );
+    },
     local: () => {
       moveNodeToContainer(container, child, rootInternals);
 
-      const newChildren = [...internals.children];
+      let newChildren: AnyChild[];
+
+      if (currentParent) {
+        const currentInternals = getCurrentInternals(
+          currentParent,
+          rootInternals,
+        )!;
+
+        const currentChildren = [...currentInternals.children];
+        currentChildren.splice(existingIndex, 1);
+
+        if (currentParent === container) {
+          newChildren = currentChildren;
+        } else {
+          currentInternals.children = strict
+            ? Object.freeze(currentChildren)
+            : currentChildren;
+
+          newChildren = [...internals.children];
+        }
+      } else {
+        newChildren = [...internals.children];
+      }
+
       newChildren.splice(newChildren.indexOf(before), 0, child);
       internals.children = strict ? Object.freeze(newChildren) : newChildren;
     },
@@ -821,6 +889,19 @@ function serializeFragment(
       return value.children.map((child) => serializeChild(child));
     },
   };
+}
+
+function getCurrentInternals(
+  currentParent: AnyChild['parent'],
+  rootInternals: RootInternals,
+): ParentInternals | undefined {
+  if (currentParent.kind === KIND_ROOT) {
+    return rootInternals;
+  }
+  if (currentParent.kind === KIND_FRAGMENT) {
+    return rootInternals.fragments.get(currentParent);
+  }
+  return rootInternals.components.get(currentParent);
 }
 
 function makeRemote<Root extends RemoteRoot<any, any>>(

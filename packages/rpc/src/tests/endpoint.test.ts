@@ -1,5 +1,7 @@
-import {createEndpoint} from '../endpoint';
+import {MessageEndpoint} from '../types';
+import {createEndpoint, TERMINATE} from '../endpoint';
 import {fromMessagePort} from '../adaptors';
+import {release, retain} from '../memory';
 
 import {MessageChannel} from './utilities';
 
@@ -48,7 +50,7 @@ describe('createEndpoint()', () => {
       const endpoint1 = createEndpoint<{hello(): string}>(
         fromMessagePort(port1),
       );
-      const endpoint2 = createEndpoint(fromMessagePort(port2));
+      const endpoint2 = createEndpoint(createCatchingMessageEndpoint(port2));
 
       await expect(endpoint1.call.hello()).rejects.toMatchObject({
         message: expect.stringContaining('hello'),
@@ -59,6 +61,39 @@ describe('createEndpoint()', () => {
       expect(await endpoint1.call.hello()).toBe('world');
     });
 
+    it('re-throws errors thrown in exposed methods', async () => {
+      expect.assertions(2);
+      const {port1, port2} = new MessageChannel();
+      port1.start();
+      port2.start();
+
+      const endpoint1 = createEndpoint<{hello(): string}>(
+        fromMessagePort(port1),
+      );
+
+      const messageEndpoint2 = fromMessagePort(port2);
+      const endpoint2 = createEndpoint({
+        ...messageEndpoint2,
+        addEventListener(event, listener) {
+          messageEndpoint2.addEventListener(event, async (...args) => {
+            await expect(listener(...args)).rejects.toMatchObject({
+              message: expect.stringContaining('this is broken'),
+            });
+          });
+        },
+      });
+
+      endpoint2.expose({
+        hello: () => {
+          throw new Error('this is broken');
+        },
+      });
+
+      await expect(endpoint1.call.hello()).rejects.toMatchObject({
+        message: expect.stringContaining('this is broken'),
+      });
+    });
+
     it('deletes an exposed value by passing undefined', async () => {
       const {port1, port2} = new MessageChannel();
       port1.start();
@@ -67,7 +102,7 @@ describe('createEndpoint()', () => {
       const endpoint1 = createEndpoint<{hello(): string}>(
         fromMessagePort(port1),
       );
-      const endpoint2 = createEndpoint(fromMessagePort(port2));
+      const endpoint2 = createEndpoint(createCatchingMessageEndpoint(port2));
 
       endpoint2.expose({hello: () => 'world'});
       endpoint2.expose({hello: undefined});
@@ -116,5 +151,66 @@ describe('createEndpoint()', () => {
         message: expect.stringContaining('terminated'),
       });
     });
+
+    it('sends the terminate method between endpoints', async () => {
+      const {port1} = new MessageChannel();
+      port1.start();
+
+      const endpoint = createEndpoint<{callMe(): () => void}>(
+        fromMessagePort(port1),
+      );
+
+      const messageSpy = jest.spyOn(port1, 'postMessage');
+
+      endpoint.terminate();
+
+      expect(messageSpy).toHaveBeenCalledWith([TERMINATE], undefined);
+    });
+
+    it('does not send memory management messages to a terminated endpoint', async () => {
+      const {port1, port2} = new MessageChannel();
+      port1.start();
+      port2.start();
+
+      const endpoint1 = createEndpoint<{callMe(): () => void}>(
+        fromMessagePort(port1),
+      );
+
+      const endpoint2 = createEndpoint(fromMessagePort(port2));
+      endpoint2.expose({
+        callMe() {
+          return () => {};
+        },
+      });
+
+      const callMeBack = await endpoint1.call.callMe();
+      retain(callMeBack);
+
+      endpoint1.terminate();
+
+      const port1MessageSpy = jest.spyOn(port1, 'postMessage');
+
+      release(callMeBack);
+
+      expect(port1MessageSpy).not.toHaveBeenCalled();
+    });
   });
 });
+
+function createCatchingMessageEndpoint(
+  messagePort: MessagePort,
+): MessageEndpoint {
+  const messageEndpoint = fromMessagePort(messagePort);
+
+  return {
+    ...messageEndpoint,
+    addEventListener: (event, listener) => {
+      messageEndpoint.addEventListener(event, async (...args) => {
+        try {
+          await listener(...args);
+          // eslint-disable-next-line no-empty
+        } catch {}
+      });
+    },
+  };
+}

@@ -1,7 +1,9 @@
-import {useEffect, useContext, createContext} from 'react';
+/* eslint @shopify/jsx-no-hardcoded-content: off */
+
+import {useEffect, useContext, createContext, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import type {Root} from 'react-dom/client';
-import {act as domAct} from 'react-dom/test-utils';
+import type {Root} from 'react-dom/client'; 
+import {act as domAct, Simulate} from 'react-dom/test-utils';
 import {
   KIND_ROOT,
   createRemoteRoot,
@@ -31,7 +33,11 @@ const RemoteWithPerson = createRemoteReactComponent<
   {run(person: {name: string}): void | Promise<void>}
 >('WithPerson');
 
+const RemoteText = createRemoteReactComponent<'Text'>('Text');
 const RemoteImage = createRemoteReactComponent<'Image', {src: string}>('Image');
+const RemoteButton = createRemoteReactComponent<'Button', {onPress(): void}>(
+  'Button',
+);
 
 const RemoteWithFragment = createRemoteReactComponent<
   'WithFragment',
@@ -63,6 +69,23 @@ function HostImage(
 ) {
   // eslint-disable-next-line jsx-a11y/alt-text
   return <img {...props} />;
+}
+
+function HostText({
+  children,
+}: ReactPropsFromRemoteComponentType<typeof RemoteText>) {
+  return <>{children}</>;
+}
+
+function HostButton({
+  onPress,
+  children,
+}: ReactPropsFromRemoteComponentType<typeof RemoteButton>) {
+  return (
+    <button type="button" onClick={onPress}>
+      {children}
+    </button>
+  );
 }
 
 function HostWithFragment({
@@ -259,6 +282,333 @@ describe('@remote-ui/react', () => {
     expect(appElement.innerHTML).toBe('hello');
   });
 
+  it('can re-order remote components at the root of the tree', () => {
+    const receiver = createRemoteReceiver();
+    const remoteRoot = createRemoteRoot(receiver.receive, {
+      components: [RemoteButton, RemoteText],
+    });
+
+    const letterValues = [
+      ['a', 'b', 'c'],
+      // move a child to the end of the list
+      ['b', 'c', 'a'],
+      // re-order children in places not at the end of the list
+      ['c', 'b', 'a'],
+    ];
+
+    function RemoteApp() {
+      const [letters, setLetters] = useState(letterValues[0]);
+
+      return (
+        <>
+          <RemoteButton
+            onPress={() =>
+              setLetters(
+                (currentLetters) =>
+                  letterValues[letterValues.indexOf(currentLetters) + 1],
+              )
+            }
+          >
+            Reorder
+          </RemoteButton>
+          {letters.map((letter) => (
+            <RemoteText key={letter}>{letter}</RemoteText>
+          ))}
+        </>
+      );
+    }
+
+    const controller = createController({
+      Text: HostText,
+      Button: HostButton,
+    });
+
+    function HostApp() {
+      return <RemoteRenderer controller={controller} receiver={receiver} />;
+    }
+
+    domAct(() => {
+      domRender(<HostApp />, appElement);
+      render(<RemoteApp />, remoteRoot, () => {
+        remoteRoot.mount();
+      });
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[0].join(''));
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[1].join(''));
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[2].join(''));
+  });
+
+  it('can re-order remote components nested in the tree', () => {
+    const receiver = createRemoteReceiver();
+    const remoteRoot = createRemoteRoot(receiver.receive, {
+      components: [RemoteButton, RemoteText, RemoteWithFragment.displayName!],
+    });
+
+    const letterValues = [
+      ['a', 'b', 'c'],
+      // move a child to the end of the list
+      ['b', 'c', 'a'],
+      // re-order children in places not at the end of the list
+      ['c', 'b', 'a'],
+    ];
+
+    function RemoteApp() {
+      const [letters, setLetters] = useState(letterValues[0]);
+
+      return (
+        <>
+          <RemoteButton
+            onPress={() =>
+              setLetters(
+                (currentLetters) =>
+                  letterValues[letterValues.indexOf(currentLetters) + 1],
+              )
+            }
+          >
+            Reorder
+          </RemoteButton>
+          {letters.map((letter) => (
+            <RemoteText key={letter}>{letter}</RemoteText>
+          ))}
+        </>
+      );
+    }
+
+    const controller = createController({
+      Text: HostText,
+      Button: HostButton,
+      WithFragment: HostWithFragment,
+    });
+
+    function HostApp() {
+      return <RemoteRenderer controller={controller} receiver={receiver} />;
+    }
+
+    domAct(() => {
+      domRender(<HostApp />, appElement);
+      render(<RemoteApp />, remoteRoot, () => {
+        remoteRoot.mount();
+      });
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[0].join(''));
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[1].join(''));
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[2].join(''));
+  });
+
+  it('can insert a component at the beginning of the tree', () => {
+    const receiver = createRemoteReceiver();
+    const remoteRoot = createRemoteRoot(receiver.receive, {
+      components: [RemoteButton, RemoteText, RemoteWithFragment.displayName!],
+    });
+
+    const letterValues = [
+      ['b', 'c'],
+      // add a child at the beginning of the list
+      ['a', 'b', 'c'],
+    ];
+
+    function RemoteApp() {
+      const [letters, setLetters] = useState(letterValues[0]);
+
+      return (
+        <>
+          <RemoteButton
+            onPress={() =>
+              setLetters(
+                (currentLetters) =>
+                  letterValues[letterValues.indexOf(currentLetters) + 1],
+              )
+            }
+          >
+            Reorder
+          </RemoteButton>
+          {letters.map((letter) => (
+            <RemoteText key={letter}>{letter}</RemoteText>
+          ))}
+        </>
+      );
+    }
+
+    const controller = createController({
+      Text: HostText,
+      Button: HostButton,
+      WithFragment: HostWithFragment,
+    });
+
+    function HostApp() {
+      return <RemoteRenderer controller={controller} receiver={receiver} />;
+    }
+
+    domAct(() => {
+      domRender(<HostApp />, appElement);
+      render(<RemoteApp />, remoteRoot, () => {
+        remoteRoot.mount();
+      });
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[0].join(''));
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[1].join(''));
+  });
+
+  it('can insert a component in the middle of the tree', () => {
+    const receiver = createRemoteReceiver();
+    const remoteRoot = createRemoteRoot(receiver.receive, {
+      components: [RemoteButton, RemoteText, RemoteWithFragment.displayName!],
+    });
+
+    const letterValues = [
+      ['a', 'c'],
+      // add a child in the middle the list
+      ['a', 'b', 'c'],
+    ];
+
+    function RemoteApp() {
+      const [letters, setLetters] = useState(letterValues[0]);
+
+      return (
+        <>
+          <RemoteButton
+            onPress={() =>
+              setLetters(
+                (currentLetters) =>
+                  letterValues[letterValues.indexOf(currentLetters) + 1],
+              )
+            }
+          >
+            Reorder
+          </RemoteButton>
+          {letters.map((letter) => (
+            <RemoteText key={letter}>{letter}</RemoteText>
+          ))}
+        </>
+      );
+    }
+
+    const controller = createController({
+      Text: HostText,
+      Button: HostButton,
+      WithFragment: HostWithFragment,
+    });
+
+    function HostApp() {
+      return <RemoteRenderer controller={controller} receiver={receiver} />;
+    }
+
+    domAct(() => {
+      domRender(<HostApp />, appElement);
+      render(<RemoteApp />, remoteRoot, () => {
+        remoteRoot.mount();
+      });
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[0].join(''));
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[1].join(''));
+  });
+
+  it('can append a component at the end of the tree', () => {
+    const receiver = createRemoteReceiver();
+    const remoteRoot = createRemoteRoot(receiver.receive, {
+      components: [RemoteButton, RemoteText, RemoteWithFragment.displayName!],
+    });
+
+    const letterValues = [
+      ['a', 'b'],
+      // add a child to the end of the list
+      ['a', 'b', 'c'],
+    ];
+
+    function RemoteApp() {
+      const [letters, setLetters] = useState(letterValues[0]);
+
+      return (
+        <>
+          <RemoteButton
+            onPress={() =>
+              setLetters(
+                (currentLetters) =>
+                  letterValues[letterValues.indexOf(currentLetters) + 1],
+              )
+            }
+          >
+            Reorder
+          </RemoteButton>
+          {letters.map((letter) => (
+            <RemoteText key={letter}>{letter}</RemoteText>
+          ))}
+        </>
+      );
+    }
+
+    const controller = createController({
+      Text: HostText,
+      Button: HostButton,
+      WithFragment: HostWithFragment,
+    });
+
+    function HostApp() {
+      return <RemoteRenderer controller={controller} receiver={receiver} />;
+    }
+
+    domAct(() => {
+      domRender(<HostApp />, appElement);
+      render(<RemoteApp />, remoteRoot, () => {
+        remoteRoot.mount();
+      });
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[0].join(''));
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain(letterValues[1].join(''));
+  });
+
   it('allows customizing the rendering of individual remote components', () => {
     const receiver = createRemoteReceiver();
     const remoteRoot = createRemoteRoot(receiver.receive, {
@@ -401,5 +751,111 @@ describe('@remote-ui/react', () => {
       expect.anything(),
     );
     expect(appElement.innerHTML).toBe('<img src="/image2.jpg">');
+  });
+
+  it('can update and render nested fragment components', () => {
+    const receiver = createRemoteReceiver();
+    const remoteRoot = createRemoteRoot(receiver.receive, {
+      components: [RemoteWithFragment.displayName!, RemoteImage, RemoteButton],
+    });
+
+    function RemoteApp() {
+      const [show, setShow] = useState(false);
+      return (
+        <>
+          <RemoteWithFragment
+            title={
+              show && (
+                <RemoteWithFragment
+                  title={<RemoteImage src="https://shopify.com" />}
+                />
+              )
+            }
+          />
+          <RemoteButton onPress={() => setShow(true)}>Show</RemoteButton>
+        </>
+      );
+    }
+
+    const controller = createController({
+      WithFragment: HostWithFragment,
+      Image: HostImage,
+      Button: HostButton,
+    });
+
+    function HostApp() {
+      return <RemoteRenderer controller={controller} receiver={receiver} />;
+    }
+
+    domAct(() => {
+      domRender(<HostApp />, appElement);
+      render(<RemoteApp />, remoteRoot, () => {
+        remoteRoot.mount();
+      });
+      jest.runAllTimers();
+    });
+    expect(appElement.innerHTML).toBe(`<button type="button">Show</button>`);
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toBe(
+      `<img src="https://shopify.com"><button type="button">Show</button>`,
+    );
+  });
+
+  it('can reorder and render nested fragment components', () => {
+    const receiver = createRemoteReceiver();
+    const remoteRoot = createRemoteRoot(receiver.receive, {
+      components: [RemoteWithFragment.displayName!, RemoteText, RemoteButton],
+    });
+
+    function RemoteApp() {
+      const [letters, setLetters] = useState(['a', 'b', 'c']);
+
+      return (
+        <>
+          <RemoteWithFragment
+            title={
+              <>
+                {letters.map((letter) => (
+                  <RemoteText key={letter}>{letter}</RemoteText>
+                ))}
+              </>
+            }
+          />
+          <RemoteButton onPress={() => setLetters(['b', 'a', 'c'])}>
+            Reorder
+          </RemoteButton>
+        </>
+      );
+    }
+
+    const controller = createController({
+      Text: HostText,
+      Button: HostButton,
+      WithFragment: HostWithFragment,
+    });
+
+    function HostApp() {
+      return <RemoteRenderer controller={controller} receiver={receiver} />;
+    }
+
+    domAct(() => {
+      domRender(<HostApp />, appElement);
+      render(<RemoteApp />, remoteRoot, () => {
+        remoteRoot.mount();
+      });
+      jest.runAllTimers();
+    });
+
+    domAct(() => {
+      Simulate.click(appElement.querySelector('button')!);
+      jest.runAllTimers();
+    });
+
+    expect(appElement.innerHTML).toContain('bac');
   });
 });
