@@ -2,7 +2,7 @@
 
 import {useEffect, useContext, createContext, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import type {Root} from 'react-dom/client'; 
+import type {Root} from 'react-dom/client';
 import {act as domAct, Simulate} from 'react-dom/test-utils';
 import {
   KIND_ROOT,
@@ -328,7 +328,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -399,7 +399,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -468,7 +468,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -530,7 +530,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -592,7 +592,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -788,7 +788,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -844,7 +844,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
