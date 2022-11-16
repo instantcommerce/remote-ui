@@ -21,6 +21,7 @@ export interface ControllerOptions {
     options: RenderComponentOptions,
   ): ReactNode;
   renderText(props: RemoteTextProps, options: RenderTextOptions): ReactNode;
+  strictComponents?: boolean;
 }
 
 export function createController(
@@ -28,6 +29,7 @@ export function createController(
   {
     renderComponent: externalRenderComponent,
     renderText: externalRenderText,
+    strictComponents = true,
   }: Partial<ControllerOptions> = {},
 ): Controller {
   const registry = new Map(Object.entries(components));
@@ -83,6 +85,10 @@ export function createController(
     get(type) {
       const value = registry.get(type as any);
       if (value == null) {
+        if (!strictComponents) {
+          return type as any;
+        }
+
         throw new Error(`Unknown component: ${type}`);
       }
       return value;
