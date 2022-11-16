@@ -1,0 +1,47 @@
+import { createElement } from '../create-element';
+import { createRef } from '../create-ref';
+import { Fragment } from '../Fragment';
+import { Component } from '../Component';
+import { createContext } from '../create-context';
+import { useState, useReducer, useMemo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useImperativeHandle, useDebugValue } from '../hooks';
+import { render } from './render';
+import { forwardRef } from './forward-ref';
+import { memo } from './memo';
+import { PureComponent } from './PureComponent';
+import { createFactory, unmountComponentAtNode, unstable_batchedUpdates } from './uncommon';
+export declare const React: {
+    version: string;
+    cloneElement: typeof import("..").cloneElement;
+    createElement: typeof createElement;
+    createRef: typeof createRef;
+    createContext: typeof createContext;
+    isValidElement: (vnode: unknown) => vnode is import("..").VNode<unknown>;
+    StrictMode: typeof Fragment;
+    Fragment: typeof Fragment;
+    Component: typeof Component;
+    Children: {
+        map: <T>(children: import("..").ComponentChildren, func: (child: import("..").ComponentChild) => T) => import("..").ComponentChild[] | null;
+        forEach: (children: import("..").ComponentChildren, func: (child: import("..").ComponentChild) => void) => void;
+        count(children: import("..").ComponentChildren): number;
+        only(children: import("..").ComponentChildren): import("..").ComponentChild;
+        toArray: (children: import("..").ComponentChildren, out?: import("..").ComponentChild[]) => import("..").ComponentChild[];
+    };
+    forwardRef: typeof forwardRef;
+    memo: typeof memo;
+    PureComponent: typeof PureComponent;
+    createFactory: typeof createFactory;
+    unmountComponentAtNode: typeof unmountComponentAtNode;
+    unstable_batchedUpdates: typeof unstable_batchedUpdates;
+    render: typeof render;
+    useState: typeof useState;
+    useReducer: typeof useReducer;
+    useMemo: typeof useMemo;
+    useCallback: typeof useCallback;
+    useContext: typeof useContext;
+    useEffect: typeof useEffect;
+    useLayoutEffect: typeof useLayoutEffect;
+    useRef: typeof useRef;
+    useImperativeHandle: typeof useImperativeHandle;
+    useDebugValue: typeof useDebugValue;
+};
+//# sourceMappingURL=react.d.ts.map

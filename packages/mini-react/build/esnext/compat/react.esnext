@@ -1,0 +1,47 @@
+import { createElement } from '../create-element.esnext';
+import { createRef } from '../create-ref.esnext';
+import { isValidElement } from '../is-valid-element.esnext';
+import { Fragment } from '../Fragment.esnext';
+import { createContext } from '../create-context.esnext';
+import { render } from './render.esnext';
+import { Children } from './Children.esnext';
+import { forwardRef } from './forward-ref.esnext';
+import { memo } from './memo.esnext';
+import { PureComponent } from './PureComponent.esnext';
+import { StrictMode } from './StrictMode.esnext';
+import { cloneElement, createFactory, unmountComponentAtNode, unstable_batchedUpdates } from './uncommon.esnext';
+import { version } from './version.esnext';
+import { Component } from '../diff/diff.esnext';
+import { useState, useReducer, useMemo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useImperativeHandle, useDebugValue } from '../hooks/hooks.esnext';
+
+const React = {
+  version,
+  cloneElement,
+  createElement,
+  createRef,
+  createContext,
+  isValidElement,
+  StrictMode,
+  Fragment,
+  Component,
+  Children,
+  forwardRef,
+  memo,
+  PureComponent,
+  createFactory,
+  unmountComponentAtNode,
+  unstable_batchedUpdates,
+  render,
+  useState,
+  useReducer,
+  useMemo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useImperativeHandle,
+  useDebugValue
+};
+
+export { React };

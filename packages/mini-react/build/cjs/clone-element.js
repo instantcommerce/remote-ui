@@ -1,0 +1,36 @@
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+var createElement = require('./create-element.js');
+
+/**
+ * Clones the given VNode, optionally adding attributes/props and replacing its children.
+ */
+function cloneElement(vnode, props, ...children) {
+  var _key, _ref;
+
+  const normalizedProps = { ...vnode.props
+  };
+  let key;
+  let ref;
+  let prop;
+
+  for (prop in props) {
+    if (prop === 'key') {
+      key = props[prop];
+    } else if (prop === 'ref') {
+      ref = props[prop];
+    } else {
+      normalizedProps[prop] = props[prop];
+    }
+  }
+
+  if (children.length) {
+    normalizedProps.children = children;
+  }
+
+  return createElement.createVNode(vnode.type, normalizedProps, (_key = key) !== null && _key !== void 0 ? _key : vnode.key, (_ref = ref) !== null && _ref !== void 0 ? _ref : vnode.ref, null);
+}
+
+exports.cloneElement = cloneElement;

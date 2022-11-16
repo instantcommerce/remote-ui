@@ -1,0 +1,92 @@
+import { createRemoteRoot } from '@remote-ui/core';
+import { createEnvironment } from '@quilted/react-testing/environment';
+import { act } from './act.esnext';
+export { act, setupRerender, teardown } from './act.esnext';
+import { render } from '../render.esnext';
+
+const {
+  mount,
+  createMount,
+  mounted,
+  unmountAll
+} = createEnvironment({
+  act: act,
+
+  mount(tree) {
+    const root = createRemoteRoot(() => {});
+    render(tree, root);
+    return {
+      root
+    };
+  },
+
+  unmount({
+    root
+  }) {
+    render(null, root);
+  },
+
+  update(instance, create) {
+    return createNodeFromComponentChild(getVNode(instance), create);
+  }
+
+});
+
+function createNodeFromComponentChild(child, create) {
+  if (isTextNode(child)) {
+    return child.props;
+  }
+
+  if (isVNode(child)) {
+    return createNodeFromVNode(child, create);
+  }
+
+  return child === null || child === void 0 ? void 0 : child.toString();
+}
+
+function createNodeFromVNode(node, create) {
+  var _node$_component, _node$_children;
+
+  const props = { ...node.props
+  };
+  const instance = (_node$_component = node._component) !== null && _node$_component !== void 0 ? _node$_component : node._remoteNode;
+  const children = toArray((_node$_children = node._children) !== null && _node$_children !== void 0 ? _node$_children : []).filter(Boolean).map(child => createNodeFromComponentChild(child, create));
+  return create({
+    props,
+    children,
+    instance,
+    type: node.type
+  });
+}
+
+function isVNode(maybeNode) {
+  return typeof maybeNode === 'object' && maybeNode != null && Reflect.has(maybeNode, 'props');
+}
+
+/**
+ * Returns the `VNode` associated with a component.
+ */
+function getVNode(component) {
+  return component._vnode;
+} // Text nodes in peact are very weird, they actually have a null `type` field
+// (despite that not being part of the type for VNode) and their props are just
+// the text content (despite that being typed as an object)
+
+
+function isTextNode(node) {
+  return node != null && node.type === null && typeof node.props === 'string';
+}
+
+function toArray(maybeArray) {
+  if (maybeArray == null) {
+    return [];
+  }
+
+  if (Array.isArray(maybeArray)) {
+    return maybeArray;
+  }
+
+  return [maybeArray];
+}
+
+export { createMount, mount, mounted, unmountAll };

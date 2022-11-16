@@ -1,0 +1,1 @@
+{"version":3,"file":"PureComponent.d.ts","sourceRoot":"","sources":["../../../src/compat/PureComponent.ts"],"names":[],"mappings":"AAAA,OAAO,EAAC,SAAS,EAAC,MAAM,cAAc,CAAC;AAOvC;;GAEG;AACH,qBAAa,aAAa,CAAC,CAAC,GAAG,EAAE,EAAE,CAAC,GAAG,EAAE,CAAE,SAAQ,SAAS,CAAC,CAAC,EAAE,CAAC,CAAC;IAEhE,oBAAoB,UAAQ;IAE5B,qBAAqB,CAAC,KAAK,EAAE,CAAC,EAAE,KAAK,EAAE,CAAC;CAKzC"}

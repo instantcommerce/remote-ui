@@ -1,0 +1,56 @@
+import { defineComponent, h } from 'vue';
+import { KIND_TEXT, KIND_COMPONENT } from '@remote-ui/core';
+import { RemoteComponent } from './RemoteComponent.mjs';
+import { RemoteText } from './RemoteText.mjs';
+import { useAttached } from './shared.mjs';
+
+const RemoteRenderer = defineComponent({
+  name: 'RemoteRenderer',
+  props: {
+    receiver: {
+      type: Object,
+      required: true
+    },
+    controller: {
+      type: Object,
+      required: true
+    }
+  },
+
+  setup({
+    receiver,
+    controller
+  }) {
+    const attached = useAttached(receiver, receiver.attached.root);
+    return () => {
+      return attached.value.children.map(child => {
+        switch (child.kind) {
+          case KIND_COMPONENT:
+            {
+              return h(RemoteComponent, {
+                key: child.id,
+                component: child,
+                receiver,
+                controller
+              });
+            }
+
+          case KIND_TEXT:
+            {
+              return h(RemoteText, {
+                key: child.id,
+                text: child,
+                receiver
+              });
+            }
+
+          default:
+            return null;
+        }
+      });
+    };
+  }
+
+});
+
+export { RemoteRenderer };

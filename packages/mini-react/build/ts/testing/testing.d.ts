@@ -1,0 +1,12 @@
+/// <reference types="react" />
+import type { CustomMount } from '@quilted/react-testing/environment';
+import { act, setupRerender, teardown } from './act';
+export { act, setupRerender, teardown };
+export type { CustomMount };
+declare const mount: <Props>(element: import("react").ReactElement<Props, string | import("react").JSXElementConstructor<any>>) => import("@quilted/react-testing/build/ts/types").NodeApi<Props, import("@quilted/react-testing/build/ts/types").EmptyObject> & import("@quilted/react-testing/build/ts/types").Root<Props, import("@quilted/react-testing/build/ts/types").EmptyObject, import("@quilted/react-testing/build/ts/types").EmptyObject>, createMount: <MountOptions extends import("@quilted/react-testing/build/ts/types").PlainObject = import("@quilted/react-testing/build/ts/types").EmptyObject, Context_1 extends import("@quilted/react-testing/build/ts/types").PlainObject = import("@quilted/react-testing/build/ts/types").EmptyObject, Actions extends import("@quilted/react-testing/build/ts/types").PlainObject = import("@quilted/react-testing/build/ts/types").EmptyObject, Async extends boolean = false>(createMountOptions: import("@quilted/react-testing/environment").RenderOption<MountOptions, Context_1> & import("@quilted/react-testing/environment").ContextOption<MountOptions, Context_1> & import("@quilted/react-testing/environment").ActionsOption<MountOptions, Context_1, Actions, import("@quilted/react-testing/build/ts/types").EmptyObject> & (Async extends true ? {
+    afterMount(wrapper: import("@quilted/react-testing/build/ts/types").RootNode<unknown, Context_1, Actions, import("@quilted/react-testing/build/ts/types").EmptyObject>, options: MountOptions): PromiseLike<void>;
+} : {
+    afterMount?(wrapper: import("@quilted/react-testing/build/ts/types").RootNode<unknown, Context_1, Actions, import("@quilted/react-testing/build/ts/types").EmptyObject>, options: MountOptions): void;
+})) => CustomMount<MountOptions, Context_1, Actions, import("@quilted/react-testing/build/ts/types").EmptyObject, Async>, mounted: Set<import("@quilted/react-testing/build/ts/types").NodeApi<any, import("@quilted/react-testing/build/ts/types").EmptyObject> & import("@quilted/react-testing/build/ts/types").Root<any, any, any>>, unmountAll: () => void;
+export { mount, createMount, mounted, unmountAll };
+//# sourceMappingURL=testing.d.ts.map

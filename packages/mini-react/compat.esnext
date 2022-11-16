@@ -1,0 +1,2 @@
+export * from "./build/esnext/compat/index.esnext";
+export {default} from "./build/esnext/compat/index.esnext";
