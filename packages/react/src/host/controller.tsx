@@ -86,7 +86,18 @@ export function createController(
       const value = registry.get(type as any);
       if (value == null) {
         if (!strictComponents) {
-          return type as any;
+          /** Wrap component to wrap function props in arrow functions */
+          return function ComponentWrapper(props) {
+            const safeProps = Object.keys(props).reduce((all, key) => {
+              const current = props[key];
+              all[key] =
+                current instanceof Function ? () => current() : current;
+              return all;
+            }, {} as typeof props);
+            const Component = type as any;
+
+            return <Component {...safeProps} />;
+          };
         }
 
         throw new Error(`Unknown component: ${type}`);
