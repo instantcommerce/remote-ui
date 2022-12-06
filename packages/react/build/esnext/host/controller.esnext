@@ -56,7 +56,17 @@ function createController(components, {
 
       if (value == null) {
         if (!strictComponents) {
-          return type;
+          /** Wrap component to wrap function props in arrow functions */
+          return function ComponentWrapper(props) {
+            const safeProps = Object.keys(props).reduce((all, key) => {
+              const current = props[key];
+              all[key] = current instanceof Function ? () => current() : current;
+              return all;
+            }, {});
+            const Component = type;
+            return /*#__PURE__*/jsx(Component, { ...safeProps
+            });
+          };
         }
 
         throw new Error(`Unknown component: ${type}`);
