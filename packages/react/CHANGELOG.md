@@ -1,11 +1,34 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## 5.0.0
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Major Changes
 
-## [Unreleased]
+- [#191](https://github.com/Shopify/remote-ui/pull/191) [`77ba3da`](https://github.com/Shopify/remote-ui/commit/77ba3da217cb0e443e674afc058916ca25f5900e) Thanks [@lemonmade](https://github.com/lemonmade)! - Added support for React 18 by having the consumer own the versions of `react` and `react-reconciler`. If you are currently using React 17 only, and are rendering in the “remote” context, you will need to add a dependency on `react-reconciler^0.27.0`. If you are using React 18, you will need to manually install the version of `react-reconciler` that matches up to that version (currently, `^0.29.0`).
+
+- [#191](https://github.com/Shopify/remote-ui/pull/191) [`77ba3da`](https://github.com/Shopify/remote-ui/commit/77ba3da217cb0e443e674afc058916ca25f5900e) Thanks [@lemonmade](https://github.com/lemonmade)! - Removed re-export of `@remote-ui/rpc`. If you need `retain` or `release`, import them directly from `@remote-ui/rpc` instead.
+
+## 4.6.0
+
+### Minor Changes
+
+- [#197](https://github.com/Shopify/remote-ui/pull/197) [`e15d142`](https://github.com/Shopify/remote-ui/commit/e15d1423f3759bdf9368d1fe3964347fd8a0c301) Thanks [@lemonmade](https://github.com/lemonmade)! - Added a number of methods that align more closely with the corresponding DOM API, and deprecated a few existing methods with overlapping functionality:
+
+  - `RemoteParent.appendChild` is deprecated, with a new `RemoteParent.append` API recommended instead. This new API matches the [`Element.append`](https://developer.mozilla.org/en-US/docs/Web/API/Element/append) DOM API: it allows you to pass multiple children, including strings that are converted to text nodes.
+  - `RemoteParent.insertChildBefore` is deprecated, with a new `RemoteParent.insertBefore` API recommended instead. This matches the [`Node.insertBefore`](https://developer.mozilla.org/en-US/docs/Web/API/Node/insertBefore) DOM API, including the fact that the second argument can be null (in which case, the method behaves the same as `append`
+  - `RemoteParent.replaceChildren` is new, and matches the [`Element.replaceChildren`](https://developer.mozilla.org/en-US/docs/Web/API/Element/replaceChildren) DOM API. It allows passing any number of children/ strings, and those are used to fully replace the existing children.
+  - `RemoteComponent.remove` and `RemoteText.remove` are new, and match the [`Element.remove`](https://developer.mozilla.org/en-US/docs/Web/API/Element/remove) DOM API.
+  - `RemoteText.updateText` is deprecated in favor of a new `RemoteText.update` method, which is a little shorter.
+
+### Patch Changes
+
+- Updated dependencies [[`e15d142`](https://github.com/Shopify/remote-ui/commit/e15d1423f3759bdf9368d1fe3964347fd8a0c301)]:
+  - @remote-ui/core@2.2.0
+  - @remote-ui/rpc@1.4.0
+
+### Deprecated
+
+- The `render` function is deprecated. Please move to using the new `createRoot` instead, which matches the API provided by React.
 
 ## [4.5.1] - 2022-05-16
 
