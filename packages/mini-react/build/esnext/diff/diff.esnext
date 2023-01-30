@@ -491,7 +491,7 @@ function diffElementNodes(remoteNode, remoteRoot, newVNode, oldVNode, globalCont
 
   if (newVNode.type === null) {
     if (oldProps !== newProps && resolvedRemoteNode.text !== newProps) {
-      resolvedRemoteNode.updateText(newProps);
+      resolvedRemoteNode.update(newProps);
     }
   } else {
     resolvedRemoteNode = resolvedRemoteNode;
@@ -718,7 +718,7 @@ function placeChild(parentNode, childVNode, oldVNode, oldChildren, excessRemoteC
     // The values only have the same type when `null`.
     // eslint-disable-next-line no-labels
     outer: if (oldRemoteNode == null || oldRemoteNode.parent !== parentNode) {
-      parentNode.appendChild(newRemoteNode);
+      parentNode.append(newRemoteNode);
       nextRemoteNode = null;
     } else {
       // `j<oldChildrenLength; j+=2` is an alternative to `j++<oldChildrenLength/2`
@@ -729,7 +729,7 @@ function placeChild(parentNode, childVNode, oldVNode, oldChildren, excessRemoteC
         }
       }
 
-      parentNode.insertChildBefore(newRemoteNode, oldRemoteNode);
+      parentNode.insertBefore(newRemoteNode, oldRemoteNode);
       nextRemoteNode = oldRemoteNode;
     }
   } // If we have pre-calculated the nextDOM node, use it. Else calculate it now

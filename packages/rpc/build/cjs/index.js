@@ -15,6 +15,8 @@ var types = require('./types.js');
 
 exports.createEndpoint = endpoint.createEndpoint;
 exports.StackFrame = memory.StackFrame;
+exports.isBasicObject = memory.isBasicObject;
+exports.isMemoryManageable = memory.isMemoryManageable;
 exports.release = memory.release;
 exports.retain = memory.retain;
 exports.createBasicEncoder = basic.createBasicEncoder;

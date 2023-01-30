@@ -1,3 +1,4 @@
+import { isBasicObject } from '@remote-ui/rpc';
 import { KIND_ROOT, ACTION_MOUNT, ACTION_INSERT_CHILD, KIND_TEXT, ACTION_REMOVE_CHILD, KIND_COMPONENT, KIND_FRAGMENT, ACTION_UPDATE_PROPS, ACTION_UPDATE_TEXT } from './types.mjs';
 import { isRemoteFragment } from './utilities.mjs';
 
@@ -99,10 +100,14 @@ function createRemoteRoot(channel, {
           return internals.internalProps;
         },
 
+        remove: () => remove(component),
         updateProps: newProps => updateProps(component, newProps, internals, rootInternals),
+        append: (...children) => append(component, children.map(child => normalizeChild(child, remoteRoot)), internals, rootInternals),
         appendChild: child => appendChild(component, normalizeChild(child, remoteRoot), internals, rootInternals),
         removeChild: child => removeChild(component, child, internals, rootInternals),
-        insertChildBefore: (child, before) => insertChildBefore(component, normalizeChild(child, remoteRoot), before, internals, rootInternals),
+        replaceChildren: (...children) => replaceChildren(component, children.map(child => normalizeChild(child, remoteRoot)), internals, rootInternals),
+        insertBefore: (child, before) => insertBefore(component, normalizeChild(child, remoteRoot), before, internals, rootInternals),
+        insertChildBefore: (child, before) => insertBefore(component, normalizeChild(child, remoteRoot), before, internals, rootInternals),
         // Just satisfying the type definition, since we need to write
         // some properties manually, which we do below. If we just `as any`
         // the whole object, we lose the implicit argument types for the
@@ -131,6 +136,9 @@ function createRemoteRoot(channel, {
       const internals = {
         text: content
       };
+
+      const update = newText => updateText(text, newText, internals, rootInternals);
+
       const text = {
         kind: KIND_TEXT,
 
@@ -138,7 +146,9 @@ function createRemoteRoot(channel, {
           return internals.text;
         },
 
-        updateText: newText => updateText(text, newText, internals, rootInternals),
+        update,
+        updateText: update,
+        remove: () => remove(text),
         // Just satisfying the type definition, since we need to write
         // some properties manually.
         ...EMPTY_OBJECT
@@ -160,9 +170,12 @@ function createRemoteRoot(channel, {
           return internals.children;
         },
 
+        append: (...children) => append(fragment, children.map(child => normalizeChild(child, remoteRoot)), internals, rootInternals),
         appendChild: child => appendChild(fragment, normalizeChild(child, remoteRoot), internals, rootInternals),
         removeChild: child => removeChild(fragment, child, internals, rootInternals),
-        insertChildBefore: (child, before) => insertChildBefore(fragment, normalizeChild(child, remoteRoot), before, internals, rootInternals),
+        replaceChildren: (...children) => replaceChildren(fragment, children.map(child => normalizeChild(child, remoteRoot)), internals, rootInternals),
+        insertBefore: (child, before) => insertBefore(fragment, normalizeChild(child, remoteRoot), before, internals, rootInternals),
+        insertChildBefore: (child, before) => insertBefore(fragment, normalizeChild(child, remoteRoot), before, internals, rootInternals),
         // Just satisfying the type definition, since we need to write
         // some properties manually.
         ...EMPTY_OBJECT
@@ -173,9 +186,12 @@ function createRemoteRoot(channel, {
       return fragment;
     },
 
+    append: (...children) => append(remoteRoot, children.map(child => normalizeChild(child, remoteRoot)), rootInternals, rootInternals),
     appendChild: child => appendChild(remoteRoot, normalizeChild(child, remoteRoot), rootInternals, rootInternals),
+    replaceChildren: (...children) => replaceChildren(remoteRoot, children.map(child => normalizeChild(child, remoteRoot)), rootInternals, rootInternals),
     removeChild: child => removeChild(remoteRoot, child, rootInternals, rootInternals),
-    insertChildBefore: (child, before) => insertChildBefore(remoteRoot, normalizeChild(child, remoteRoot), before, rootInternals, rootInternals),
+    insertBefore: (child, before) => insertBefore(remoteRoot, normalizeChild(child, remoteRoot), before, rootInternals, rootInternals),
+    insertChildBefore: (child, before) => insertBefore(remoteRoot, normalizeChild(child, remoteRoot), before, rootInternals, rootInternals),
 
     mount() {
       if (rootInternals.mounted) return Promise.resolve();
@@ -317,8 +333,8 @@ function updateProps(component, newProps, internals, rootInternals) {
 // const textField = root.createComponent('TextField', {value, onChange});
 // const button = root.createComponent('Button', {onPress});
 //
-// root.appendChild(textField);
-// root.appendChild(button);
+// root.append(textField);
+// root.append(button);
 //
 // function getPropsForValue(value = '') {
 //   return {
@@ -376,25 +392,61 @@ function updateProps(component, newProps, internals, rootInternals) {
 // most recently-applied implementation, instead of directly calling the old implementation.
 
 
-function tryHotSwappingValues(currentValue, newValue) {
+function tryHotSwappingValues(currentValue, newValue, seen = new Set()) {
+  if (seen.has(currentValue)) {
+    return [IGNORE];
+  }
+
+  seen.add(currentValue);
+
   if (typeof currentValue === 'function' && FUNCTION_CURRENT_IMPLEMENTATION_KEY in currentValue) {
-    return [typeof newValue === 'function' ? IGNORE : makeValueHotSwappable(newValue), [[currentValue, newValue]]];
+    const result = [typeof newValue === 'function' ? IGNORE : makeValueHotSwappable(newValue), [[currentValue, newValue]]];
+    return result;
   }
 
   if (Array.isArray(currentValue)) {
-    return tryHotSwappingArrayValues(currentValue, newValue);
+    const result = tryHotSwappingArrayValues(currentValue, newValue, seen);
+    return result;
   }
 
-  if (typeof currentValue === 'object' && currentValue != null && !isRemoteFragment(currentValue)) {
-    return tryHotSwappingObjectValues(currentValue, newValue);
+  if (isBasicObject(currentValue) && !isRemoteFragment(currentValue)) {
+    const result = tryHotSwappingObjectValues(currentValue, newValue, seen);
+    return result;
   }
 
-  return [currentValue === newValue ? IGNORE : newValue];
+  const result = [currentValue === newValue ? IGNORE : newValue];
+  return result;
 }
 
-function makeValueHotSwappable(value) {
+function makeValueHotSwappable(value, seen = new Map()) {
+  const seenValue = seen.get(value);
+  if (seenValue) return seenValue;
+
   if (isRemoteFragment(value)) {
+    seen.set(value, value);
     return value;
+  }
+
+  if (Array.isArray(value)) {
+    const result = [];
+    seen.set(value, result);
+
+    for (const nested of value) {
+      result.push(makeValueHotSwappable(nested, seen));
+    }
+
+    return result;
+  }
+
+  if (isBasicObject(value)) {
+    const result = {};
+    seen.set(value, result);
+
+    for (const key of Object.keys(value)) {
+      result[key] = makeValueHotSwappable(value[key], seen);
+    }
+
+    return result;
   }
 
   if (typeof value === 'function') {
@@ -408,33 +460,48 @@ function makeValueHotSwappable(value) {
       writable: true,
       value
     });
+    seen.set(value, wrappedFunction);
     return wrappedFunction;
-  } else if (Array.isArray(value)) {
-    return value.map(makeValueHotSwappable);
-  } else if (typeof value === 'object' && value != null) {
-    return Object.keys(value).reduce((newValue, key) => {
-      newValue[key] = makeValueHotSwappable(value[key]);
-      return newValue;
-    }, {});
   }
 
+  seen.set(value, value);
   return value;
-} // eslint-disable-next-line consistent-return
+}
 
+function collectNestedHotSwappableValues(value, seen = new Set()) {
+  if (seen.has(value)) return undefined;
+  seen.add(value);
 
-function collectNestedHotSwappableValues(value) {
-  if (typeof value === 'function') {
-    if (FUNCTION_CURRENT_IMPLEMENTATION_KEY in value) return [value];
-  } else if (Array.isArray(value)) {
+  if (Array.isArray(value)) {
     return value.reduce((all, element) => {
-      const nested = collectNestedHotSwappableValues(element);
+      const nested = collectNestedHotSwappableValues(element, seen);
       return nested ? [...all, ...nested] : all;
     }, []);
-  } else if (typeof value === 'object' && value != null) {
+  }
+
+  if (isBasicObject(value)) {
     return Object.keys(value).reduce((all, key) => {
-      const nested = collectNestedHotSwappableValues(value[key]);
+      const nested = collectNestedHotSwappableValues(value[key], seen);
       return nested ? [...all, ...nested] : all;
     }, []);
+  }
+
+  if (typeof value === 'function') {
+    return FUNCTION_CURRENT_IMPLEMENTATION_KEY in value ? [value] : undefined;
+  }
+
+  return undefined;
+}
+
+function remove(child) {
+  var _child$parent;
+
+  (_child$parent = child.parent) === null || _child$parent === void 0 ? void 0 : _child$parent.removeChild(child);
+}
+
+function append(container, children, internals, rootInternals) {
+  for (const child of children) {
+    appendChild(container, child, internals, rootInternals);
   }
 }
 
@@ -479,6 +546,14 @@ function appendChild(container, child, internals, rootInternals) {
       internals.children = strict ? Object.freeze(newChildren) : newChildren;
     }
   });
+}
+
+function replaceChildren(container, children, internals, rootInternals) {
+  for (const child of container.children) {
+    removeChild(container, child, internals, rootInternals);
+  }
+
+  append(container, children, internals, rootInternals);
 } // there is a problem with this, because when multiple children
 // are removed, there is no guarantee the messages will arrive in the
 // order we need them to on the host side (it depends how React
@@ -505,7 +580,7 @@ function removeChild(container, child, internals, rootInternals) {
   });
 }
 
-function insertChildBefore(container, child, before, internals, rootInternals) {
+function insertBefore(container, child, before, internals, rootInternals) {
   var _currentParent$childr2;
 
   const {
@@ -521,7 +596,7 @@ function insertChildBefore(container, child, before, internals, rootInternals) {
   const existingIndex = (_currentParent$childr2 = currentParent === null || currentParent === void 0 ? void 0 : currentParent.children.indexOf(child)) !== null && _currentParent$childr2 !== void 0 ? _currentParent$childr2 : -1;
   return perform(container, rootInternals, {
     remote: channel => {
-      const beforeIndex = container.children.indexOf(before);
+      const beforeIndex = before == null ? container.children.length - 1 : container.children.indexOf(before);
       channel(ACTION_INSERT_CHILD, container.id, beforeIndex < existingIndex || existingIndex < 0 ? beforeIndex : beforeIndex - 1, serializeChild(child), currentParent ? currentParent.id : false);
     },
     local: () => {
@@ -543,7 +618,12 @@ function insertChildBefore(container, child, before, internals, rootInternals) {
         newChildren = [...internals.children];
       }
 
-      newChildren.splice(newChildren.indexOf(before), 0, child);
+      if (before == null) {
+        newChildren.push(child);
+      } else {
+        newChildren.splice(newChildren.indexOf(before), 0, child);
+      }
+
       internals.children = strict ? Object.freeze(newChildren) : newChildren;
     }
   });
@@ -688,8 +768,8 @@ function makeRemote(value, id, root) {
   });
 }
 
-function tryHotSwappingObjectValues(currentValue, newValue) {
-  if (typeof newValue !== 'object' || newValue == null) {
+function tryHotSwappingObjectValues(currentValue, newValue, seen) {
+  if (!isBasicObject(newValue)) {
     var _collectNestedHotSwap;
 
     return [makeValueHotSwappable(newValue), (_collectNestedHotSwap = collectNestedHotSwappableValues(currentValue)) === null || _collectNestedHotSwap === void 0 ? void 0 : _collectNestedHotSwap.map(hotSwappable => [hotSwappable, undefined])];
@@ -712,8 +792,11 @@ function tryHotSwappingObjectValues(currentValue, newValue) {
     }
 
     const newObjectValue = newValue[key];
-    const [updatedValue, elementHotSwaps] = tryHotSwappingValues(currentObjectValue, newObjectValue);
-    if (elementHotSwaps) hotSwaps.push(...elementHotSwaps);
+    const [updatedValue, elementHotSwaps] = tryHotSwappingValues(currentObjectValue, newObjectValue, seen);
+
+    if (elementHotSwaps) {
+      hotSwaps.push(...elementHotSwaps);
+    }
 
     if (updatedValue !== IGNORE) {
       hasChanged = true;
@@ -730,7 +813,7 @@ function tryHotSwappingObjectValues(currentValue, newValue) {
   return [hasChanged ? normalizedNewValue : IGNORE, hotSwaps];
 }
 
-function tryHotSwappingArrayValues(currentValue, newValue) {
+function tryHotSwappingArrayValues(currentValue, newValue, seen) {
   if (!Array.isArray(newValue)) {
     var _collectNestedHotSwap2;
 
@@ -755,7 +838,7 @@ function tryHotSwappingArrayValues(currentValue, newValue) {
         continue;
       }
 
-      const [updatedValue, elementHotSwaps] = tryHotSwappingValues(currentArrayValue, newArrayValue);
+      const [updatedValue, elementHotSwaps] = tryHotSwappingValues(currentArrayValue, newArrayValue, seen);
       if (elementHotSwaps) hotSwaps.push(...elementHotSwaps);
 
       if (updatedValue === IGNORE) {

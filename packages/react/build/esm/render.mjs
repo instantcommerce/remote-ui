@@ -1,19 +1,45 @@
-import { reconciler } from './reconciler.mjs';
+import { version } from 'react';
+import { createReconciler } from './reconciler.mjs';
 import { RenderContext } from './context.mjs';
 import { jsx } from 'react/jsx-runtime';
 
-const cache = new WeakMap(); // @see https://github.com/facebook/react/blob/993ca533b42756811731f6b7791ae06a35ee6b4d/packages/react-reconciler/src/ReactRootTags.js
-// I think we are a legacy root?
+const cache = new WeakMap(); // @see https://github.com/facebook/react/blob/fea6f8da6ab669469f2fa3f18bd3a831f00ab284/packages/react-reconciler/src/ReactRootTags.js#L12
+// We don't support concurrent rendering for now.
 
 const LEGACY_ROOT = 0;
-function render(element, root, callback) {
+const defaultReconciler = createReconciler();
+function createRoot(root) {
+  return {
+    render(children) {
+      render(children, root);
+    },
+
+    unmount() {
+      if (!cache.has(root)) return;
+      render(null, root);
+      cache.delete(root);
+    }
+
+  };
+}
+/**
+ * @deprecated Use `createRoot` for a React 18-style rendering API.
+ */
+
+function render(element, root, callback, reconciler = defaultReconciler) {
   // First, check if we've already cached a container and render context for this root
   let cached = cache.get(root);
 
   if (!cached) {
-    // Since we haven't created a container for this root yet, create a new one
+    var _version$split;
+
+    const major = Number(((_version$split = version.split('.')) === null || _version$split === void 0 ? void 0 : _version$split[0]) || 18); // Since we haven't created a container for this root yet, create a new one
+
     const value = {
-      container: reconciler.createContainer(root, LEGACY_ROOT, false, null),
+      container: major >= 18 ? reconciler.createContainer(root, LEGACY_ROOT, null, false, null, // Might not be necessary
+      'r-ui', () => null, null) : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - this is to support React 17
+      reconciler.createContainer(root, LEGACY_ROOT, false, null),
       // We also cache the render context to avoid re-creating it on subsequent render calls
       renderContext: {
         root,
@@ -31,7 +57,7 @@ function render(element, root, callback) {
   } = cached; // callback is cast here because the typings do not mark that argument
   // as optional, even though it is.
 
-  reconciler.updateContainer( /*#__PURE__*/jsx(RenderContext.Provider, {
+  reconciler.updateContainer(element && /*#__PURE__*/jsx(RenderContext.Provider, {
     value: renderContext,
     children: element
   }), container, null, callback); // Did not work for me because (I think?) it is done by the worker
@@ -49,4 +75,4 @@ function render(element, root, callback) {
   // });
 }
 
-export { render };
+export { createRoot, render };

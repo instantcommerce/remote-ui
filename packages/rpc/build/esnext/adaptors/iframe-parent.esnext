@@ -10,14 +10,20 @@ function fromIframe(target, {
 
 
   const listenerMap = new WeakMap();
-  const iframeReadyPromise = new Promise(resolve => {
-    window.addEventListener('message', event => {
-      if (event.source !== target.contentWindow) return;
+  let resolveIFrameReadyPromise;
 
-      if (event.data === 'remote-ui::ready') {
-        resolve();
-      }
-    });
+  function onMessage(event) {
+    if (event.source !== target.contentWindow) return;
+
+    if (event.data === 'remote-ui::ready') {
+      window.removeEventListener('message', onMessage);
+      resolveIFrameReadyPromise();
+    }
+  }
+
+  const iframeReadyPromise = new Promise(resolve => {
+    resolveIFrameReadyPromise = resolve;
+    window.addEventListener('message', onMessage);
   });
   return {
     async postMessage(message, transfer) {
@@ -43,6 +49,7 @@ function fromIframe(target, {
     },
 
     terminate() {
+      window.removeEventListener('message', onMessage);
       if (shouldTerminate) target.remove();
     }
 

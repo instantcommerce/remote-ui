@@ -14,4 +14,6 @@ export declare function retain(value: any, { deep }?: {
 export declare function release(value: any, { deep }?: {
     deep?: boolean | undefined;
 }): boolean;
+export declare function releaseInternal(value: any, deep: boolean, seen: Map<any, boolean>): boolean;
+export declare function isBasicObject(value: unknown): value is object;
 //# sourceMappingURL=memory.d.ts.map

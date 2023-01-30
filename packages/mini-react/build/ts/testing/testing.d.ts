@@ -1,4 +1,3 @@
-/// <reference types="react" />
 import type { CustomMount } from '@quilted/react-testing/environment';
 import { act, setupRerender, teardown } from './act';
 export { act, setupRerender, teardown };

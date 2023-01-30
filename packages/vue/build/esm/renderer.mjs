@@ -22,11 +22,7 @@ function createRenderer(root, {
     },
 
     insert(child, parent, anchor) {
-      if (anchor) {
-        parent.insertChildBefore(child, anchor);
-      } else {
-        parent.appendChild(child);
-      }
+      parent.insertBefore(child, anchor);
     },
 
     nextSibling(node) {
@@ -62,7 +58,7 @@ function createRenderer(root, {
 
     setText(node, text) {
       if (isRemoteText(node)) {
-        node.updateText(text);
+        node.update(text);
       } else {
         setElementText(node, text);
       }
@@ -112,11 +108,7 @@ function createRenderer(root, {
 }
 
 function setElementText(element, text) {
-  for (const child of element.children) {
-    element.removeChild(child);
-  }
-
-  element.appendChild(text);
+  element.replaceChildren(text);
 }
 
 export { createRenderer };

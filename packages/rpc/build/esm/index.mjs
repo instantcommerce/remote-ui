@@ -1,5 +1,5 @@
 export { createEndpoint } from './endpoint.mjs';
-export { StackFrame, release, retain } from './memory.mjs';
+export { StackFrame, isBasicObject, isMemoryManageable, release, retain } from './memory.mjs';
 export { createBasicEncoder } from './encoding/basic.mjs';
 export { fromMessagePort } from './adaptors/message-port.mjs';
 export { fromWebWorker } from './adaptors/web-worker.mjs';

@@ -48,54 +48,70 @@ function createBasicEncoder(api) {
 
   };
 
-  function encode(value) {
+  function encode(value, seen = new Map()) {
+    if (value == null) {
+      return [value];
+    }
+
+    const seenValue = seen.get(value);
+
+    if (seenValue) {
+      return seenValue;
+    }
+
     if (typeof value === 'object') {
-      if (value == null) {
-        return [value];
-      }
-
-      if (value instanceof ArrayBuffer) {
-        return [value];
-      }
-
-      const transferables = [];
-
       if (Array.isArray(value)) {
+        seen.set(value, [undefined]);
+        const transferables = [];
         const result = value.map(item => {
-          const [result, nestedTransferables = []] = encode(item);
+          const [result, nestedTransferables = []] = encode(item, seen);
           transferables.push(...nestedTransferables);
           return result;
         });
-        return [result, transferables];
+        const fullResult = [result, transferables];
+        seen.set(value, fullResult);
+        return fullResult;
       }
 
-      const result = Object.keys(value).reduce((object, key) => {
-        const [result, nestedTransferables = []] = encode(value[key]);
-        transferables.push(...nestedTransferables);
-        return { ...object,
-          [key]: result
-        };
-      }, {});
-      return [result, transferables];
+      if (memory.isBasicObject(value)) {
+        seen.set(value, [undefined]);
+        const transferables = [];
+        const result = Object.keys(value).reduce((object, key) => {
+          const [result, nestedTransferables = []] = encode(value[key], seen);
+          transferables.push(...nestedTransferables);
+          return { ...object,
+            [key]: result
+          };
+        }, {});
+        const fullResult = [result, transferables];
+        seen.set(value, fullResult);
+        return fullResult;
+      }
     }
 
     if (typeof value === 'function') {
       if (functionsToId.has(value)) {
         const id = functionsToId.get(value);
-        return [{
+        const result = [{
           [FUNCTION]: id
         }];
+        seen.set(value, result);
+        return result;
       }
 
       const id = api.uuid();
       functionsToId.set(value, id);
       idsToFunction.set(id, value);
-      return [{
+      const result = [{
         [FUNCTION]: id
       }];
+      seen.set(value, result);
+      return result;
     }
 
-    return [value];
+    const result = [value];
+    seen.set(value, result);
+    return result;
   }
 
   function decode(value, retainedBy) {

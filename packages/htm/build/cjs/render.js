@@ -32,11 +32,9 @@ function createHtm(root) {
 }
 function append(tree, parent) {
   if (Array.isArray(tree)) {
-    for (const child of tree) {
-      parent.appendChild(child);
-    }
+    parent.append(...tree);
   } else {
-    parent.appendChild(tree);
+    parent.append(tree);
   }
 }
 
