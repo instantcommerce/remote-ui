@@ -1,7 +1,8 @@
 /* eslint @shopify/jsx-no-hardcoded-content: off */
 
 import {useEffect, useContext, createContext, useState} from 'react';
-import {render as domRender} from 'react-dom';
+import {createRoot} from 'react-dom/client';
+import type {Root} from 'react-dom/client';
 import {act as domAct, Simulate} from 'react-dom/test-utils';
 import {
   KIND_ROOT,
@@ -17,6 +18,10 @@ import {
   createRemoteReactComponent,
   ReactPropsFromRemoteComponentType,
 } from '..';
+
+// Tell react to enable `act()` behaviour. See:
+// https://reactjs.org/blog/2022/03/08/react-18-upgrade-guide.html#configuring-your-testing-environment
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 const RemoteHelloWorld = createRemoteReactComponent<
   'HelloWorld',
@@ -97,14 +102,21 @@ function HostWithFragment({
 
 describe('@remote-ui/react', () => {
   let appElement!: HTMLElement;
+  let domRoot: Root;
 
   beforeEach(() => {
     appElement = document.createElement('div');
     document.body.appendChild(appElement);
+    domAct(() => {
+      domRoot = createRoot(appElement);
+    });
     jest.useFakeTimers();
   });
 
   afterEach(() => {
+    domAct(() => {
+      domRoot.unmount();
+    });
     appElement.remove();
     jest.useRealTimers();
   });
@@ -128,7 +140,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -168,7 +180,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -200,11 +212,10 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(
+      domRoot.render(
         <PersonContext.Provider value={person}>
           <HostApp />
         </PersonContext.Provider>,
-        appElement,
       );
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
@@ -234,7 +245,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -262,7 +273,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -317,7 +328,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -388,7 +399,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -457,7 +468,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -519,7 +530,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -581,7 +592,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -641,7 +652,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -708,7 +719,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -777,7 +788,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
@@ -833,7 +844,7 @@ describe('@remote-ui/react', () => {
     }
 
     domAct(() => {
-      domRender(<HostApp />, appElement);
+      domRoot.render(<HostApp />);
       render(<RemoteApp />, remoteRoot, () => {
         remoteRoot.mount();
       });
