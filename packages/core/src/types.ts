@@ -112,6 +112,16 @@ export interface RemoteRoot<
     >
   >;
   readonly options: RemoteRootOptions<AllowedComponents>;
+  append(
+    ...children: AllowedChildren<
+      AllowedChildrenTypes,
+      RemoteRoot<AllowedComponents, AllowedChildrenTypes>,
+      true
+    >[]
+  ): void | Promise<void>;
+  /**
+   * @deprecated use `RemoteRoot.append` instead.
+   */
   appendChild(
     child: AllowedChildren<
       AllowedChildrenTypes,
@@ -125,6 +135,26 @@ export interface RemoteRoot<
       RemoteRoot<AllowedComponents, AllowedChildrenTypes>
     >,
   ): void | Promise<void>;
+  replaceChildren(
+    ...children: AllowedChildren<
+      AllowedChildrenTypes,
+      RemoteRoot<AllowedComponents, AllowedChildrenTypes>,
+      true
+    >[]
+  ): void | Promise<void>;
+  insertBefore(
+    child: AllowedChildren<
+      AllowedChildrenTypes,
+      RemoteRoot<AllowedComponents, AllowedChildrenTypes>
+    >,
+    before?: AllowedChildren<
+      AllowedChildrenTypes,
+      RemoteRoot<AllowedComponents, AllowedChildrenTypes>
+    > | null,
+  ): void | Promise<void>;
+  /**
+   * @deprecated use `RemoteRoot.insertBefore` instead.
+   */
   insertChildBefore(
     child: AllowedChildren<
       AllowedChildrenTypes,
@@ -145,7 +175,7 @@ export interface RemoteRoot<
             AllowedChildrenTypes,
             RemoteRoot<AllowedComponents, AllowedChildrenTypes>,
             true
-          >[]
+          >[],
         ]
       | [
           (PropsForRemoteComponent<Type> | null)?,
@@ -161,7 +191,7 @@ export interface RemoteRoot<
             AllowedChildrenTypes,
             RemoteRoot<AllowedComponents, AllowedChildrenTypes>,
             true
-          >[]
+          >[],
         ]
       | [
           PropsForRemoteComponent<Type>,
@@ -197,15 +227,32 @@ export interface RemoteComponent<
   readonly root: Root;
   readonly top: RemoteComponent<any, Root> | Root | null;
   readonly parent: RemoteComponent<any, Root> | Root | null;
+  remove(): void | Promise<void>;
   updateProps(
     props: Partial<PropsForRemoteComponent<Type>>,
   ): void | Promise<void>;
+  append(
+    ...children: AllowedChildren<ExtractChildren<Type>, Root, true>[]
+  ): void | Promise<void>;
+  /**
+   * @deprecated use `RemoteComponent.append` instead.
+   */
   appendChild(
     child: AllowedChildren<ExtractChildren<Type>, Root, true>,
   ): void | Promise<void>;
   removeChild(
     child: AllowedChildren<ExtractChildren<Type>, Root>,
   ): void | Promise<void>;
+  replaceChildren(
+    ...children: AllowedChildren<ExtractChildren<Type>, Root, true>[]
+  ): void | Promise<void>;
+  insertBefore(
+    child: AllowedChildren<ExtractChildren<Type>, Root>,
+    before?: AllowedChildren<ExtractChildren<Type>, Root> | null,
+  ): void | Promise<void>;
+  /**
+   * @deprecated use `RemoteComponent.insertBefore` instead.
+   */
   insertChildBefore(
     child: AllowedChildren<ExtractChildren<Type>, Root>,
     before: AllowedChildren<ExtractChildren<Type>, Root>,
@@ -221,12 +268,28 @@ export interface RemoteFragment<
   readonly root: Root;
   readonly top: RemoteComponent<any, Root> | Root | null;
   readonly parent: RemoteComponent<any, Root> | Root | null;
+  append(
+    ...children: AllowedChildren<ExtractChildren<any>, Root, true>[]
+  ): void | Promise<void>;
+  /**
+   * @deprecated use `RemoteComponent.append` instead.
+   */
   appendChild(
     child: AllowedChildren<ExtractChildren<any>, Root, true>,
   ): void | Promise<void>;
   removeChild(
     child: AllowedChildren<ExtractChildren<any>, Root>,
   ): void | Promise<void>;
+  replaceChildren(
+    ...children: AllowedChildren<ExtractChildren<any>, Root, true>[]
+  ): void | Promise<void>;
+  insertBefore(
+    child: AllowedChildren<ExtractChildren<any>, Root>,
+    before?: AllowedChildren<ExtractChildren<any>, Root> | null,
+  ): void | Promise<void>;
+  /**
+   * @deprecated use `RemoteComponent.insertBefore` instead.
+   */
   insertChildBefore(
     child: AllowedChildren<ExtractChildren<any>, Root>,
     before: AllowedChildren<ExtractChildren<any>, Root>,
@@ -240,7 +303,12 @@ export interface RemoteText<Root extends RemoteRoot<any, any>> {
   readonly root: Root;
   readonly top: RemoteComponent<any, Root> | Root | null;
   readonly parent: RemoteComponent<any, Root> | Root | null;
+  update(text: string): void | Promise<void>;
+  /**
+   * @deprecated use `RemoteText.update` instead.
+   */
   updateText(text: string): void | Promise<void>;
+  remove(): void | Promise<void>;
 }
 
 export type RemoteChild<Root extends RemoteRoot<any, any>> =
